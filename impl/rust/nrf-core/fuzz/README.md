@@ -10,7 +10,7 @@ cargo install cargo-fuzz
 cargo fuzz run decode_value -- -max_total_time=30
 ```
 
-The seed corpus lives under `fuzz/corpus/decode_value/` and includes both valid and invalid NRF-1.1 samples.
+The seed corpus lives under `fuzz/corpus/decode_value/` and includes both valid and invalid ai-nrf1 samples.
 
 ## CI
 

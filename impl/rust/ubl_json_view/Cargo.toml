@@ -3,7 +3,7 @@ name = "ubl_json_view"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "ai-json-nrf1: deterministic JSON view of NRF-1.1 binary values"
+description = "ai-json-nrf1: deterministic JSON view of ai-nrf1 binary values"
 
 [dependencies]
 nrf-core = { path = "../nrf-core" }

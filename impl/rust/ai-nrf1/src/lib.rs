@@ -1,4 +1,4 @@
-//! `ai-nrf1` — canonical NRF-1.1 binary encoding crate.
+//! `ai-nrf1` — canonical ai-nrf1 binary encoding crate.
 //!
 //! Use `ai-nrf1` / `ai-json-nrf1` when the **norm** matters.
 //! Use `ubl-byte` / `ubl-json` when the **brand** matters.

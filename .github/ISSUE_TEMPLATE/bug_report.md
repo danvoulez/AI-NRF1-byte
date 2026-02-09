@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with NRF-1.1 or implementations
+about: Report a problem with ai-nrf1 or implementations
 labels: bug
 ---
 

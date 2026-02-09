@@ -92,7 +92,7 @@ that breaks this chain is unconstitutional and must be corrected or removed.
 
 ### Section 2.1 — Canonicality
 
-There exists exactly ONE valid NRF-1.1 byte encoding for any given logical value.
+There exists exactly ONE valid ai-nrf1 byte encoding for any given logical value.
 That encoding is `encode(ρ(value))`. No other byte stream is valid for that value.
 Two implementations that produce different bytes for the same value are in violation.
 
@@ -107,13 +107,13 @@ guarantees this at the byte level. Together they are absolute.
 
 Any artifact produced by the system (receipt, permit, ghost, capsule) MUST be
 independently verifiable using only: the artifact itself, the signer's public key,
-and the NRF-1.1 specification (which includes ρ). No database. No API call. No trust.
+and the ai-nrf1 specification (which includes ρ). No database. No API call. No trust.
 
 ---
 
 ## Article III — The Seven Types
 
-NRF-1.1 recognizes exactly seven value types:
+ai-nrf1 recognizes exactly seven value types:
 
 | Tag | Type   | Encoding |
 |-----|--------|----------|
@@ -384,7 +384,7 @@ provider to another requires zero data transformation. The bytes are the bytes.
 
 ### Section 11.1 — Single Source of Truth
 
-`impl/rust/nrf-core` is the ONE canonical implementation of NRF-1.1
+`impl/rust/nrf-core` is the ONE canonical implementation of ai-nrf1
 encode/decode. All other crates delegate to it. There are no alternative
 implementations in the workspace.
 

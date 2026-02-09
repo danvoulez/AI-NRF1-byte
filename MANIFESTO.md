@@ -145,7 +145,7 @@ it did not happen.
 ### 3. Verify Without Trust
 
 Any artifact produced by this system can be verified using only
-the artifact itself, the signer's public key, and the NRF-1.1 spec.
+the artifact itself, the signer's public key, and the ai-nrf1 spec.
 No database query. No API call. No "trust me."
 
 ### 4. Ghost Before Execute
@@ -231,7 +231,7 @@ Trust must be based on math. ai-nrf1 provides the math.
 - **nrf** — Normalized Representation Format, because canonicality
   is the foundation everything else stands on
 - **1** — because we got it right the first time, and the spec
-  is frozen. NRF-1.1 is the final encoding. What changes is what
+  is frozen. ai-nrf1 is the final encoding. What changes is what
   you build on top of it.
 
 The brand name is **UBL** (Universal Business Layer) for the product
@@ -307,7 +307,7 @@ ai-nrf1 was built for a world where AI agents make decisions, generate
 artifacts, and audit each other's work. Every design choice was made
 with one question: **"Can an LLM reason about this correctly?"**
 
-### What makes NRF-1.1 LLM-friendly
+### What makes ai-nrf1 LLM-friendly
 
 - **Zero-choice encoding.** 7 tags. No variants. No floats. No optional
   semantics. An LLM doesn't need to "choose" between valid encodings
@@ -382,7 +382,7 @@ The difference: compatible means "an LLM can use it." First means
 This is not a closed system. It is a spec, an implementation,
 and a set of constitutions.
 
-If you can encode a value into NRF-1.1 bytes and produce the same
+If you can encode a value into ai-nrf1 bytes and produce the same
 hash we do, you are compatible. If you can verify our signatures,
 you can trust our receipts. If you can read our receipts, you can
 audit our decisions.

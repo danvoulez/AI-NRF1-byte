@@ -6,7 +6,7 @@ edition = "2021"
 categories = ["encoding", "data-structures"]
 keywords = ["canonical", "encoding", "content-addressable"]
 license = "MIT OR Apache-2.0"
-description = "NRF-1.1 canonical binary encoding (LLM-first, zero-choice)"
+description = "ai-nrf1 canonical binary encoding (LLM-first, zero-choice)"
 readme = "README.md"
 
 [features]

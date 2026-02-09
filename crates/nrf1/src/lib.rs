@@ -1,4 +1,4 @@
-//! Thin facade over `nrf-core` — the single canonical NRF-1.1 implementation.
+//! Thin facade over `nrf-core` — the single canonical ai-nrf1 implementation.
 //! All types and functions are re-exported from `nrf_core`.
 
 pub use nrf_core::Value;

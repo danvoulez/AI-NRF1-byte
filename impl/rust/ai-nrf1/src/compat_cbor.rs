@@ -1,4 +1,4 @@
-//! CBOR ↔ NRF-1.1 compatibility (strict subset).
+//! CBOR ↔ ai-nrf1 compatibility (strict subset).
 //! Feature-gated with `compat_cbor`.
 
 #[cfg(feature = "compat_cbor")]

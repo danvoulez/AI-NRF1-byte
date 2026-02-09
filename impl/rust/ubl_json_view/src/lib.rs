@@ -1,4 +1,4 @@
-//! `ai-json-nrf1` — Deterministic JSON view of NRF-1.1 binary values.
+//! `ai-json-nrf1` — Deterministic JSON view of ai-nrf1 binary values.
 //!
 //! Provides `to_json` and `from_json` for lossless, canonical round-tripping
 //! between `nrf_core::Value` (bytes) and `serde_json::Value` (JSON).

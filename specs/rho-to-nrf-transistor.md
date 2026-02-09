@@ -3,7 +3,7 @@
 Uma formulação formal, auditável e LLM-first para dados, hashes e juízos
 
 **Resumo.** Definimos um pipeline determinístico em três camadas:
-(i) ρ (forma normal semântica) → (ii) NRF-1.1 (codificação binária canônica) → (iii) D (decisor puro com estados {ALLOW, DENY, REQUIRE, GHOST}).
+(i) ρ (forma normal semântica) → (ii) ai-nrf1 (codificação binária canônica) → (iii) D (decisor puro com estados {ALLOW, DENY, REQUIRE, GHOST}).
 Provamos propriedades de canonicidade (um valor lógico ⇒ um único byte stream), idempotência (ρ é estável), confluência (ordem de reescrita irrelevante), e composicionalidade (série/quorum/latch) sob Write-Before-Execute e HAL. Fornecemos gramática, regras normativas, erros, vetores KAT, e esboços de provas.
 
 —
@@ -16,7 +16,7 @@ Provamos propriedades de canonicidade (um valor lógico ⇒ um único byte strea
 - **Bytes canônicos:**           \mathcal{B} = \{0,1\}^*.
 - **Decisor:**                   D : \mathcal{B} \to \{\textsf{ALLOW},\textsf{DENY},\textsf{REQUIRE},\textsf{GHOST}\}.
 
-Compomos: \(E \circ \rho : \mathcal{V} \to \mathcal{N} \to \mathcal{B}\) onde \(\rho\) é a normalização semântica e \(E\) é a codificação NRF-1.1.
+Compomos: \(E \circ \rho : \mathcal{V} \to \mathcal{N} \to \mathcal{B}\) onde \(\rho\) é a normalização semântica e \(E\) é a codificação ai-nrf1.
 
 Definimos ainda:
 \(\textsf{CID}(v) = \textsf{BLAKE3}(E(\rho(v)))\) e \(\textsf{SIG}(v,k) = \textsf{Ed25519}(\textsf{SHA256}(E(\rho(v)) \parallel \textsf{domain}))\).
@@ -84,7 +84,7 @@ Invariante ρ: após ρ, não restam escolhas ao encoder. ρ é aplicada recursi
 
 —
 
-## 3. Codificação NRF-1.1 (trechos essenciais)
+## 3. Codificação ai-nrf1 (trechos essenciais)
 
 ### 3.1 Tipos e tags
 

@@ -1,6 +1,6 @@
 # Examples & Test Vectors
 
-This directory contains small NRF-1.1 hex samples for quick sanity checks.
+This directory contains small ai-nrf1 hex samples for quick sanity checks.
 
 Usage:
 ```

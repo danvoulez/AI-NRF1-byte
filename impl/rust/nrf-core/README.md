@@ -1,6 +1,6 @@
 # nrf-core
 
-Reference implementation of **NRF-1.1** canonical encoding.
+Reference implementation of **ai-nrf1** canonical encoding.
 
 - 7 types, single encoding each
 - Int64 (8 bytes, big-endian)

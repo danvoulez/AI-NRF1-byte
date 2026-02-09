@@ -315,7 +315,7 @@ Para o **P1 (AI Model Passport)** está **quase**: falta empacotar 2–3 peças 
 Status em 1 linha por bloco
 ---------------------------
 
-*   **Core (ρ→NRF-1.1, KATs, idempotência/confluência)**: ✅ verde — canônico, auditado, com vetores e erros normativos.
+*   **Core (ρ→ai-nrf1, KATs, idempotência/confluência)**: ✅ verde — canônico, auditado, com vetores e erros normativos.
 *   **Engine HTTP + wrapper v2 (domain layer)**: ✅ pronto para receber ACTs e emitir Card URL.
 *   **SIRP (capsules + delivery/execution)**: ✅ mínimo ok para Gateway (INTENT/RESULT + delivery); verificação completa pode entrar logo depois.
 *   **Permit (assinatura/verificação)**: ✅ spec e integração viáveis; só garantir verificação no executor (hash pin + expiração).
@@ -861,13 +861,13 @@ Cole isso como **patch** (unified diff) e aplica na raiz do repo:
  
 -// NOTE: subcommands bundle/verify-bundle/ghost exist, but tests expect `decode`.
 -// We'll add `encode`/`decode` here to satisfy differential tests.
-+// nrf_core: supomos que o crate fornece encode/decode canônicos dos bytes NRF-1.1
++// nrf_core: supomos que o crate fornece encode/decode canônicos dos bytes ai-nrf1
 +// Ajuste o path do crate se o nome for diferente no teu repo.
 +use nrf_core as nrf;
  
  #[derive(Parser, Debug)]
  #[command(name = "nrf1")]
- #[command(about = "NRF-1.1 CLI")]
+ #[command(about = "ai-nrf1 CLI")]
  struct Cli {
      #[command(subcommand)]
      cmd: Cmd,
