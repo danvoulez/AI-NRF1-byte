@@ -46,5 +46,8 @@ members = [
 
   # WASM bindings
   "bindings/wasm/ai-nrf1-wasm",
+
+  # Benchmarks
+  "benches",
 ]
 resolver = "2"
