@@ -49,7 +49,7 @@ fn json_bytes_reject_upper_hex() {
         .args(["encode", jf.to_str().unwrap()])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("lowercase"));
+        .stderr(predicate::str::contains("HexUppercase"));
 }
 
 #[test]
@@ -64,5 +64,5 @@ fn reject_bom_in_string() {
         .args(["encode", jf.to_str().unwrap()])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("BOM (U+FEFF)"));
+        .stderr(predicate::str::contains("BOMPresent"));
 }

@@ -95,7 +95,7 @@ fn bytes_to_json(b: &[u8]) -> serde_json::Value {
     match b.len() {
         32 => {
             // Bytes(32) → "b3:<hex>"
-            serde_json::Value::String(format!("b3:{}", hex::encode(b)))
+            serde_json::Value::String(format!("b3:{}", nrf_core::encode_hex_lower(b)))
         }
         16 | 64 => {
             // Bytes(16|64) → "b64:<base64>"
@@ -171,7 +171,11 @@ fn parse_string_or_bytes(s: &str) -> Result<Value, JsonViewError> {
     // "b3:<64 hex chars>" → Bytes(32)
     if RE_B3.is_match(s) {
         let hex_str = &s[3..];
-        let bytes = hex::decode(hex_str).map_err(|_| JsonViewError::BadHex)?;
+        let bytes = nrf_core::parse_hex_lower(hex_str).map_err(|e| match e {
+            nrf_core::Error::HexOddLength => JsonViewError::OddHex,
+            nrf_core::Error::HexUppercase | nrf_core::Error::HexInvalidChar => JsonViewError::BadHex,
+            _ => JsonViewError::BadHex,
+        })?;
         return Ok(Value::Bytes(bytes));
     }
     // "b64:<base64>" → Bytes(16 or 64)
@@ -215,6 +219,73 @@ pub fn validate_decimal(s: &str) -> Result<(), JsonViewError> {
         return Err(JsonViewError::InvalidDecimal(s.to_string()));
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Canon vs View type wrappers (item 15)
+// ---------------------------------------------------------------------------
+
+/// Canonical ai-nrf1 bytes — the ONLY thing you hash/sign.
+/// Wraps encoded NRF bytes (with magic prefix).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonBytes(Vec<u8>);
+
+impl CanonBytes {
+    /// Encode an NRF Value into canonical bytes.
+    pub fn from_value(v: &Value) -> Self {
+        Self(nrf_core::encode(v))
+    }
+
+    /// Decode canonical bytes back to an NRF Value.
+    pub fn to_value(&self) -> Result<Value, JsonViewError> {
+        nrf_core::decode(&self.0).map_err(|e| JsonViewError::NrfDecode(e.to_string()))
+    }
+
+    /// Raw bytes (for hashing/signing).
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// BLAKE3 hash as `[u8; 32]`.
+    pub fn blake3(&self) -> [u8; 32] {
+        nrf_core::hash_bytes(&self.0)
+    }
+
+    /// BLAKE3 CID as `b3:<hex>`.
+    pub fn cid(&self) -> String {
+        format!("b3:{}", nrf_core::encode_hex_lower(&self.blake3()))
+    }
+
+    /// Convert to JSON view (for display only — never hash this).
+    pub fn to_json_view(&self) -> Result<JsonView, JsonViewError> {
+        let v = self.to_value()?;
+        Ok(JsonView(to_json(&v)))
+    }
+}
+
+/// JSON view of an NRF value — for display/transport only.
+/// NEVER hash or sign this directly; convert back to `CanonBytes` first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonView(serde_json::Value);
+
+impl JsonView {
+    /// Parse a JSON value into a view (validates NFC, rejects floats, etc.).
+    pub fn from_json(j: &serde_json::Value) -> Result<Self, JsonViewError> {
+        // Validate by round-tripping through from_json
+        let _ = from_json(j)?;
+        Ok(Self(j.clone()))
+    }
+
+    /// The underlying serde_json::Value.
+    pub fn as_json(&self) -> &serde_json::Value {
+        &self.0
+    }
+
+    /// Convert back to canonical bytes (the only thing you hash/sign).
+    pub fn to_canon_bytes(&self) -> Result<CanonBytes, JsonViewError> {
+        let v = from_json(&self.0)?;
+        Ok(CanonBytes(nrf_core::encode(&v)))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -426,5 +497,50 @@ mod tests {
         } else {
             panic!("expected map");
         }
+    }
+
+    // --- Canon vs View type wrapper tests ---
+
+    #[test]
+    fn canon_bytes_roundtrip() {
+        let mut m = BTreeMap::new();
+        m.insert("key".into(), Value::String("value".into()));
+        let v = Value::Map(m);
+        let canon = CanonBytes::from_value(&v);
+        let back = canon.to_value().unwrap();
+        assert_eq!(v, back);
+    }
+
+    #[test]
+    fn canon_bytes_cid_format() {
+        let v = Value::String("hello".into());
+        let canon = CanonBytes::from_value(&v);
+        let cid = canon.cid();
+        assert!(cid.starts_with("b3:"));
+        assert_eq!(cid.len(), 3 + 64); // "b3:" + 64 hex chars
+    }
+
+    #[test]
+    fn canon_to_json_view_roundtrip() {
+        let v = Value::Int(42);
+        let canon = CanonBytes::from_value(&v);
+        let view = canon.to_json_view().unwrap();
+        let back = view.to_canon_bytes().unwrap();
+        assert_eq!(canon, back);
+    }
+
+    #[test]
+    fn json_view_rejects_float() {
+        let j = serde_json::json!(3.15);
+        assert!(JsonView::from_json(&j).is_err());
+    }
+
+    #[test]
+    fn json_view_accepts_valid() {
+        let j = serde_json::json!({"name": "test", "count": 42});
+        let view = JsonView::from_json(&j).unwrap();
+        let canon = view.to_canon_bytes().unwrap();
+        let back_view = canon.to_json_view().unwrap();
+        assert_eq!(view.as_json()["name"], back_view.as_json()["name"]);
     }
 }

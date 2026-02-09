@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use unicode_normalization::is_nfc;
 
 #[derive(Parser)]
-#[command(name = "nrf1", version = "0.4.0", about = "NRF-1.1 CLI")]
+#[command(name = "nrf1", version = "0.4.0", about = "ai-nrf1 (UBL-Byte) CLI — encode/decode canonical bytes")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -12,9 +12,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Encode JSON to NRF-1.1 bytes
+    /// Encode JSON to ai-nrf1 bytes
     Encode(EncodeCmd),
-    /// Decode NRF-1.1 bytes to JSON
+    /// Decode ai-nrf1 bytes to JSON (view only — hash is always over bytes)
     Decode(DecodeCmd),
     Bundle {
         #[arg(long)]

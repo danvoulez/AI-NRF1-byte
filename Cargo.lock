@@ -4178,7 +4178,6 @@ name = "ubl_json_view"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "hex",
  "nrf-core",
  "proptest",
  "regex",

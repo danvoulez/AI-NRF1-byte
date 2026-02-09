@@ -1,6 +1,8 @@
 # nrf1-cli
 
-Minimal CLI for **NRF-1.1**.
+Minimal CLI for **ai-nrf1 (UBL-Byte)**.
+
+> JSON is a *view* — hash and signature are always over **ai-nrf1 bytes**.
 
 ## Build
 ```bash

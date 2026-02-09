@@ -3,11 +3,9 @@ use clap::{Parser, Subcommand};
 use std::io::{self, Read, Write};
 use nrf_core::{encode, decode, hash_bytes};
 use serde_json::Value as J;
-use unicode_normalization::is_nfc;
-
-/// NRF-1.1 CLI: encode/decode/hash
+/// ai-nrf1 (UBL-Byte) CLI: encode/decode/hash
 #[derive(Parser)]
-#[command(name="nrf1", version, about="NRF-1.1 CLI")]
+#[command(name="nrf1", version, about="ai-nrf1 (UBL-Byte) CLI — encode/decode/hash over canonical bytes")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -15,7 +13,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Encode JSON -> NRF-1.1 bytes
+    /// Encode JSON -> ai-nrf1 bytes
     Encode {
         /// Input JSON file (or - for stdin)
         input: String,
@@ -23,7 +21,7 @@ enum Cmd {
         #[arg(short, long)]
         out: Option<String>,
     },
-    /// Decode NRF-1.1 bytes -> JSON
+    /// Decode ai-nrf1 bytes -> JSON (view only — hash is always over bytes)
     Decode {
         /// Input NRF file (or - for stdin)
         input: String,
@@ -44,26 +42,11 @@ enum Cmd {
 // JSON <-> NRF mapping (canonical, zero-choice)
 
 fn parse_hex_lower(s: &str) -> anyhow::Result<Vec<u8>> {
-    if s.len() % 2 != 0 || s.is_empty() { anyhow::bail!("bytes hex must be even length and non-empty"); }
-    let mut out = Vec::with_capacity(s.len()/2);
-    for ch in s.chars() {
-        if !ch.is_ascii_hexdigit() { anyhow::bail!("bytes hex must be [0-9a-f]"); }
-        if ch.is_ascii_uppercase() { anyhow::bail!("bytes hex must be lowercase"); }
-    }
-    for i in (0..s.len()).step_by(2) {
-        let b = u8::from_str_radix(&s[i..i+2], 16)?;
-        out.push(b);
-    }
-    Ok(out)
+    nrf_core::parse_hex_lower(s).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 fn to_hex_lower(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len()*2);
-    for b in bytes {
-        use std::fmt::Write;
-        write!(&mut s, "{b:02x}").unwrap();
-    }
-    s
+    nrf_core::encode_hex_lower(bytes)
 }
 
 fn json_to_nrf(v: &J) -> anyhow::Result<nrf_core::Value> {
@@ -76,8 +59,7 @@ fn json_to_nrf(v: &J) -> anyhow::Result<nrf_core::Value> {
             V::Int(n.as_i64().unwrap())
         }
         J::String(s) => {
-            if s.contains('\u{FEFF}') { anyhow::bail!("BOM (U+FEFF) forbidden"); }
-            else if !is_nfc(s) { anyhow::bail!("String must be NFC"); }
+            nrf_core::validate_nfc(s).map_err(|e| anyhow::anyhow!("{e}"))?;
             V::String(s.clone())
         },
         J::Array(arr) => V::Array(arr.iter().map(json_to_nrf).collect::<anyhow::Result<Vec<_>>>()?),

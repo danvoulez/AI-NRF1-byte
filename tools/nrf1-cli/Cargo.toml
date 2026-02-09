@@ -3,7 +3,7 @@ name = "nrf1-tools"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "CLI for NRF-1.1: encode/decode/hash"
+description = "ai-nrf1 (UBL-Byte) CLI: encode/decode/hash over canonical bytes"
 repository = "https://example.com/AI-NRF1"
 
 [[bin]]

@@ -184,7 +184,8 @@ fn json_to_nrf(v: &serde_json::Value) -> Result<nrf_core::Value, String> {
         }
         serde_json::Value::String(s) => {
             if let Some(hex_str) = s.strip_prefix("$bytes:") {
-                let bytes = hex::decode(hex_str).map_err(|e| format!("bad hex in $bytes: {e}"))?;
+                let bytes = nrf_core::parse_hex_lower(hex_str)
+                    .map_err(|e| format!("bad hex in $bytes: {e}"))?;
                 Ok(nrf_core::Value::Bytes(bytes))
             } else {
                 Ok(nrf_core::Value::String(s.clone()))

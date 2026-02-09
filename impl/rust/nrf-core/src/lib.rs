@@ -51,6 +51,16 @@ pub enum Error {
     SizeExceeded,
     #[error("Io({0})")]
     Io(String),
+    #[error("HexOddLength")]
+    HexOddLength,
+    #[error("HexUppercase")]
+    HexUppercase,
+    #[error("HexInvalidChar")]
+    HexInvalidChar,
+    #[error("NotASCII")]
+    NotASCII,
+    #[error("Float")]
+    Float,
 }
 
 impl From<io::Error> for Error {
@@ -255,6 +265,63 @@ pub fn blake3_cid(value: &Value) -> String {
 /// Type alias for backward compat with crates/nrf1.
 pub type NrfError = Error;
 
+// ---------------------------------------------------------------------------
+// Canonical hex utilities (shared across all crates)
+// ---------------------------------------------------------------------------
+
+/// Parse a lowercase hex string into bytes.
+/// Rejects: odd length, uppercase, non-hex chars.
+/// Accepts empty string → empty vec.
+pub fn parse_hex_lower(s: &str) -> Result<Vec<u8>> {
+    if s.is_empty() {
+        return Ok(Vec::new());
+    }
+    if s.len() % 2 != 0 {
+        return Err(Error::HexOddLength);
+    }
+    for ch in s.chars() {
+        if !ch.is_ascii_hexdigit() {
+            return Err(Error::HexInvalidChar);
+        }
+        if ch.is_ascii_uppercase() {
+            return Err(Error::HexUppercase);
+        }
+    }
+    let mut out = Vec::with_capacity(s.len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        let b = u8::from_str_radix(&s[i..i + 2], 16)
+            .map_err(|_| Error::HexInvalidChar)?;
+        out.push(b);
+    }
+    Ok(out)
+}
+
+/// Encode bytes as lowercase hex.
+pub fn encode_hex_lower(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        use std::fmt::Write;
+        let _ = write!(s, "{b:02x}");
+    }
+    s
+}
+
+/// Validate that a string is ASCII-only (for DID/KID fields).
+pub fn validate_ascii(s: &str) -> Result<()> {
+    if s.is_ascii() { Ok(()) } else { Err(Error::NotASCII) }
+}
+
+/// Validate that a string is NFC-normalized and has no BOM.
+pub fn validate_nfc(s: &str) -> Result<()> {
+    if s.contains('\u{FEFF}') {
+        return Err(Error::BOMPresent);
+    }
+    if !unicode_normalization::is_nfc(s) {
+        return Err(Error::NotNFC);
+    }
+    Ok(())
+}
+
 // ----- varint32 (unsigned LEB128 minimal) -----
 
 fn decode_varint32(cur: &mut &[u8]) -> Result<u32> {
@@ -302,6 +369,7 @@ fn encode_varint32(buf: &mut Vec<u8>, mut value: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn roundtrip_simple() {
         let mut map = BTreeMap::new();
@@ -312,6 +380,125 @@ mod tests {
         let dec = decode(&enc).unwrap();
         assert_eq!(v, dec);
         assert_eq!(enc, encode(&dec));
+    }
+
+    // --- Hex canon util KATs ---
+
+    #[test]
+    fn hex_lower_roundtrip() {
+        let bytes = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        let hex = encode_hex_lower(&bytes);
+        assert_eq!(hex, "deadbeef");
+        assert_eq!(parse_hex_lower(&hex).unwrap(), bytes);
+    }
+
+    #[test]
+    fn hex_empty() {
+        assert_eq!(parse_hex_lower("").unwrap(), Vec::<u8>::new());
+        assert_eq!(encode_hex_lower(&[]), "");
+    }
+
+    #[test]
+    fn hex_reject_uppercase() {
+        assert_eq!(parse_hex_lower("DEADBEEF").unwrap_err(), Error::HexUppercase);
+    }
+
+    #[test]
+    fn hex_reject_odd_length() {
+        assert_eq!(parse_hex_lower("abc").unwrap_err(), Error::HexOddLength);
+    }
+
+    #[test]
+    fn hex_reject_invalid_char() {
+        assert_eq!(parse_hex_lower("zz").unwrap_err(), Error::HexInvalidChar);
+    }
+
+    #[test]
+    fn hex_reject_mixed_case() {
+        assert_eq!(parse_hex_lower("aAbB").unwrap_err(), Error::HexUppercase);
+    }
+
+    // --- Bytes empty KAT ---
+
+    #[test]
+    fn roundtrip_bytes_empty() {
+        let v = Value::Bytes(vec![]);
+        let enc = encode(&v);
+        let dec = decode(&enc).unwrap();
+        assert_eq!(v, dec);
+        // Verify exact encoding: magic + tag 0x05 + varint 0
+        assert_eq!(enc, vec![0x6e, 0x72, 0x66, 0x31, 0x05, 0x00]);
+    }
+
+    // --- NFC vs NFD key ordering ---
+
+    #[test]
+    fn reject_nfd_key() {
+        // NFD: "e" + combining acute = é (two codepoints)
+        let nfd_key = "e\u{0301}";
+        let mut map = BTreeMap::new();
+        map.insert(nfd_key.to_string(), Value::Int(1));
+        let v = Value::Map(map);
+        let enc = encode(&v);
+        // Decoder must reject NFD keys
+        assert_eq!(decode(&enc).unwrap_err(), Error::NotNFC);
+    }
+
+    #[test]
+    fn accept_nfc_key() {
+        // NFC: "é" (single codepoint)
+        let nfc_key = "\u{00E9}";
+        let mut map = BTreeMap::new();
+        map.insert(nfc_key.to_string(), Value::Int(1));
+        let v = Value::Map(map);
+        let enc = encode(&v);
+        assert_eq!(decode(&enc).unwrap(), v);
+    }
+
+    // --- Map key ordering by bytes ---
+
+    #[test]
+    fn map_keys_sorted_by_bytes() {
+        // "a" < "b" < "é" (0xC3 0xA9) in byte order
+        let mut map = BTreeMap::new();
+        map.insert("b".into(), Value::Int(2));
+        map.insert("a".into(), Value::Int(1));
+        map.insert("\u{00E9}".into(), Value::Int(3)); // é
+        let v = Value::Map(map);
+        let enc = encode(&v);
+        let dec = decode(&enc).unwrap();
+        if let Value::Map(m) = &dec {
+            let keys: Vec<&String> = m.keys().collect();
+            assert_eq!(keys, vec!["a", "b", "\u{00E9}"]);
+        }
+    }
+
+    // --- Validate ASCII/NFC utils ---
+
+    #[test]
+    fn validate_ascii_ok() {
+        assert!(validate_ascii("did:ubl:lab512#key-1").is_ok());
+    }
+
+    #[test]
+    fn validate_ascii_reject() {
+        assert_eq!(validate_ascii("did:ubl:café").unwrap_err(), Error::NotASCII);
+    }
+
+    #[test]
+    fn validate_nfc_ok() {
+        assert!(validate_nfc("hello").is_ok());
+        assert!(validate_nfc("\u{00E9}").is_ok()); // NFC é
+    }
+
+    #[test]
+    fn validate_nfc_reject_bom() {
+        assert_eq!(validate_nfc("\u{FEFF}hello").unwrap_err(), Error::BOMPresent);
+    }
+
+    #[test]
+    fn validate_nfc_reject_nfd() {
+        assert_eq!(validate_nfc("e\u{0301}").unwrap_err(), Error::NotNFC);
     }
 }
 
