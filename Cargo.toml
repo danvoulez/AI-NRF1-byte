@@ -43,5 +43,8 @@ members = [
 
   # Conformance tests
   "tests/base_conformance",
+
+  # WASM bindings
+  "bindings/wasm/ai-nrf1-wasm",
 ]
 resolver = "2"
