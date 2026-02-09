@@ -24,6 +24,13 @@ class NonStringKey(Error): pass
 class UnsortedKeys(Error): pass
 class DuplicateKey(Error): pass
 class TrailingData(Error): pass
+class DepthExceeded(Error): pass
+class SizeExceeded(Error): pass
+class HexOddLength(Error): pass
+class HexUppercase(Error): pass
+class HexInvalidChar(Error): pass
+class NotASCII(Error): pass
+class Float(Error): pass
 
 def _read_exact(b, off, n):
     if off + n > len(b):
@@ -160,6 +167,8 @@ def _encode_value(out, v):
     elif isinstance(v, bool):
         out.append(TAG_TRUE if v else TAG_FALSE)
     elif isinstance(v, int):
+        if isinstance(v, float):
+            raise Float()
         out.append(TAG_I64)
         out += struct.pack(">q", int(v))
     elif isinstance(v, str):
@@ -173,15 +182,14 @@ def _encode_value(out, v):
         out += bs
     elif isinstance(v, dict) and set(v.keys()) == {"$bytes"} and isinstance(v["$bytes"], str):
         hx = v["$bytes"]
-        # enforce lowercase even-length
-        if any(c.isalpha() and c != c.lower() for c in hx):
-            raise ValueError("bytes hex must be lowercase")
         if len(hx) % 2 != 0:
-            raise ValueError("bytes hex length must be even")
-        try:
-            raw = bytes.fromhex(hx)
-        except Exception:
-            raise ValueError("invalid hex")
+            raise HexOddLength()
+        for c in hx:
+            if c in 'ABCDEF':
+                raise HexUppercase()
+            if c not in '0123456789abcdef':
+                raise HexInvalidChar()
+        raw = bytes.fromhex(hx)
         out.append(TAG_BYTES)
         out += _encode_varint32(len(raw))
         out += raw
