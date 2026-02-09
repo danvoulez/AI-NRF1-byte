@@ -1,0 +1,44 @@
+
+[workspace]
+members = [
+  # Canon implementation (single source of truth for encode/decode)
+  "impl/rust/nrf-core",
+
+  # Canon facade crates (re-export nrf-core)
+  "crates/nrf1",
+  "impl/rust/ai-nrf1",
+
+  # Domain crates
+  "crates/receipt",
+  "crates/permit",
+  "crates/ghost",
+  "crates/acts",
+  "crates/runtime",
+  "crates/reasoning-bit",
+  "crates/sdk-rs",
+  "crates/envelope",
+  "crates/ubl-json",
+  "crates/ubl-transport",
+  "crates/ubl-policy",
+
+  # Service layer (brand = ubl-*)
+  "crates/ubl-auth",
+  "crates/ubl-model",
+  "crates/ubl-storage",
+  "services/registry",
+
+  # impl/ crates
+  "impl/rust/signers",
+
+  # CLI / Tools
+  "cli/nrf1",
+  "tools/nrf1-cli",
+
+  # Modules (MODULE phase)
+  "modules/receipt-gateway",
+  "modules/ledger-ndjson",
+
+  # Conformance tests
+  "tests/base_conformance",
+]
+resolver = "2"

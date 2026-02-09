@@ -1,0 +1,29 @@
+[package]
+name = "receipt-gateway"
+version = "0.1.0"
+edition = "2021"
+description = """
+The first MODULE: API Receipt Gateway.
+Runs the full pipeline: INPUT → ρ → POLICY → GHOST → RECEIPT → SIGN → URL.
+Acts served: ATTEST, EVALUATE, TRANSACT.
+Base traits: PolicyEngine (delegates to pluggable engines).
+Constitution of the Modules: compliant.
+"""
+
+[dependencies]
+nrf-core = { path = "../../impl/rust/nrf-core" }
+nrf1 = { path = "../../crates/nrf1" }
+receipt = { path = "../../crates/receipt" }
+permit = { path = "../../crates/permit" }
+ghost = { path = "../../crates/ghost" }
+ubl-policy = { path = "../../crates/ubl-policy" }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+hex = "0.4"
+anyhow = "1"
+
+[dev-dependencies]
+rand = "0.8"

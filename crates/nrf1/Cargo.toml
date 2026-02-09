@@ -1,0 +1,10 @@
+
+[package]
+name = "nrf1"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Thin facade over nrf-core — canonical NRF-1.1 encoder/decoder"
+
+[dependencies]
+nrf-core = { path = "../../impl/rust/nrf-core" }

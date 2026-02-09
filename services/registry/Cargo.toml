@@ -1,0 +1,43 @@
+
+[package]
+name = "registry"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v7", "v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+anyhow = "1"
+# BASE crates
+nrf-core = { path = "../../impl/rust/nrf-core" }
+nrf1 = { path = "../../crates/nrf1" }
+receipt = { path = "../../crates/receipt" }
+ghost = { path = "../../crates/ghost" }
+runtime = { path = "../../crates/runtime" }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+blake3 = "1"
+rand = "0.8"
+hex = "0.4"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+ubl-storage = { path = "../../crates/ubl-storage" }
+
+# MODULES (optional, gated by features)
+receipt-gateway = { path = "../../modules/receipt-gateway", optional = true }
+ledger-ndjson = { path = "../../modules/ledger-ndjson", optional = true }
+
+[features]
+default = ["all-modules"]
+all-modules = ["module-receipt-gateway", "module-ledger-ndjson"]
+module-receipt-gateway = ["dep:receipt-gateway"]
+module-ledger-ndjson = ["dep:ledger-ndjson"]
+
+[dev-dependencies]
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }

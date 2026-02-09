@@ -1,0 +1,4 @@
+# LAB 512 secrets — NEVER commit
+.env.lab512
+*.pem
+*.key

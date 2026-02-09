@@ -1,0 +1,19 @@
+[package]
+name = "base-conformance"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nrf-core = { path = "../../impl/rust/nrf-core" }
+nrf1 = { path = "../../crates/nrf1" }
+receipt = { path = "../../crates/receipt" }
+permit = { path = "../../crates/permit" }
+ghost = { path = "../../crates/ghost" }
+acts = { path = "../../crates/acts" }
+ubl-transport = { path = "../../crates/ubl-transport" }
+ubl-policy = { path = "../../crates/ubl-policy" }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+blake3 = "1"
+rand = "0.8"
+serde_json = "1"

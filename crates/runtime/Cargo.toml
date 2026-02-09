@@ -1,0 +1,16 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+description = """
+Certified Runtime — BASE terrain.
+Defines the RuntimeAttestation trait and ρ-validated RuntimeInfo.
+The interface is BASE. The implementations are MODULES.
+"""
+
+[dependencies]
+nrf-core = { path = "../../impl/rust/nrf-core" }
+nrf1 = { path = "../../crates/nrf1" }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
