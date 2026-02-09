@@ -22,7 +22,7 @@ pub fn to_nrf(v: &serde_json::Value) -> anyhow::Result<Value> {
         }
         serde_json::Value::String(s) => Value::String(s.clone()),
         serde_json::Value::Array(xs) => {
-            Value::Array(xs.iter().map(|x| to_nrf(x)).collect::<anyhow::Result<Vec<_>>>()?)
+            Value::Array(xs.iter().map(to_nrf).collect::<anyhow::Result<Vec<_>>>()?)
         }
         serde_json::Value::Object(m) => {
             let mut bm = std::collections::BTreeMap::new();

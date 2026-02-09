@@ -46,6 +46,7 @@ pub struct LedgerEntry {
 }
 
 impl LedgerEntry {
+    #[allow(clippy::too_many_arguments)]
     pub fn now(
         event: LedgerEvent,
         app: &str,
@@ -97,8 +98,8 @@ pub enum LedgerError {
 impl std::fmt::Display for LedgerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LedgerError::Io(e) => write!(f, "ledger I/O: {}", e),
-            LedgerError::Serialization(e) => write!(f, "ledger serialize: {}", e),
+            LedgerError::Io(e) => write!(f, "ledger I/O: {e}"),
+            LedgerError::Serialization(e) => write!(f, "ledger serialize: {e}"),
         }
     }
 }

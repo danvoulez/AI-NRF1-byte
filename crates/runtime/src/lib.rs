@@ -126,7 +126,7 @@ impl RuntimeInfo {
 
         // ρ-normalize: NFC strings, strip nulls, sort keys
         rho::normalize(&v)
-            .map_err(|e| RuntimeError::RhoFailed(format!("{}", e)))
+            .map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
     }
 
     /// Compute the CID of this RuntimeInfo (ρ-canonical).
@@ -136,7 +136,7 @@ impl RuntimeInfo {
     pub fn canonical_cid(&self) -> Result<String, RuntimeError> {
         let v = self.to_canonical_value()?;
         rho::canonical_cid(&v)
-            .map_err(|e| RuntimeError::RhoFailed(format!("{}", e)))
+            .map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
     }
 
     /// Full validation: structure + ρ-canonicality.
@@ -145,7 +145,7 @@ impl RuntimeInfo {
         // Verify ρ-canonicality: normalize and check it doesn't change
         let v = self.to_canonical_value()?;
         rho::validate(&v)
-            .map_err(|e| RuntimeError::NotCanonical(format!("{}", e)))?;
+            .map_err(|e| RuntimeError::NotCanonical(format!("{e}")))?;
         Ok(())
     }
 }

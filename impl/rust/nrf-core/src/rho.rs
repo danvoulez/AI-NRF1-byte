@@ -45,8 +45,8 @@ impl std::fmt::Display for RhoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidUTF8 => write!(f, "Rho.InvalidUTF8"),
-            Self::InvalidDecimal(s) => write!(f, "Rho.InvalidDecimal({})", s),
-            Self::InvalidTimestamp(s) => write!(f, "Rho.InvalidTimestamp({})", s),
+            Self::InvalidDecimal(s) => write!(f, "Rho.InvalidDecimal({s})"),
+            Self::InvalidTimestamp(s) => write!(f, "Rho.InvalidTimestamp({s})"),
         }
     }
 }
@@ -180,9 +180,9 @@ pub fn normalize_timestamp(s: &str) -> Result<String, RhoError> {
         let trimmed = frac.trim_end_matches('0');
         if trimmed.is_empty() {
             // All zeros — drop the fraction entirely
-            Ok(format!("{}Z", before_dot))
+            Ok(format!("{before_dot}Z"))
         } else {
-            Ok(format!("{}.{}Z", before_dot, trimmed))
+            Ok(format!("{before_dot}.{trimmed}Z"))
         }
     } else {
         // No fractional part — already canonical
@@ -218,14 +218,14 @@ pub fn normalize_decimal(s: &str) -> Result<String, RhoError> {
             // e.g. "1.0" → "1", "-0.0" → "0"
             let result = int_part.to_string();
             if is_negative && result != "0" {
-                Ok(format!("-{}", result))
+                Ok(format!("-{result}"))
             } else {
                 Ok(result)
             }
         } else {
-            let result = format!("{}.{}", int_part, frac_part);
+            let result = format!("{int_part}.{frac_part}");
             if is_negative {
-                Ok(format!("-{}", result))
+                Ok(format!("-{result}"))
             } else {
                 Ok(result)
             }
@@ -257,7 +257,7 @@ pub fn validate(v: &Value) -> Result<(), RhoError> {
             for (k, val) in orig {
                 if *val == Value::Null && !norm.contains_key(k) {
                     return Err(RhoError::InvalidDecimal(
-                        format!("map key '{}' has null value (absence ≠ null)", k),
+                        format!("map key '{k}' has null value (absence ≠ null)"),
                     ));
                 }
             }

@@ -28,7 +28,7 @@ async fn start_server() -> String {
     let rt = runtime::SelfAttestation::new("test-binary-hash");
 
     let cfg = registry::state::Config {
-        public_base: format!("http://localhost:{}", port),
+        public_base: format!("http://localhost:{port}"),
         issuer_did: "did:ubl:test".into(),
     };
 
@@ -45,7 +45,7 @@ async fn start_server() -> String {
 
     let app = registry::build_router(state);
 
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port))
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
         .await.unwrap();
 
     tokio::spawn(async move {
@@ -53,7 +53,7 @@ async fn start_server() -> String {
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    format!("http://127.0.0.1:{}", port)
+    format!("http://127.0.0.1:{port}")
 }
 
 // ==========================================================================
@@ -63,7 +63,7 @@ async fn start_server() -> String {
 #[tokio::test]
 async fn test_health() {
     let base = start_server().await;
-    let resp = reqwest::get(format!("{}/health", base)).await.unwrap();
+    let resp = reqwest::get(format!("{base}/health")).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["status"], "ok");
@@ -74,7 +74,7 @@ async fn test_create_receipt_without_auth_returns_401() {
     let base = start_server().await;
     let client = reqwest::Client::new();
     let resp = client
-        .post(format!("{}/v1/lab512/dev/receipts", base))
+        .post(format!("{base}/v1/lab512/dev/receipts"))
         .json(&json!({
             "body": {"test": true},
             "act": "ATTEST",
@@ -95,7 +95,7 @@ async fn test_full_pipeline_creates_receipt() {
     let client = reqwest::Client::new();
 
     let resp = client
-        .post(format!("{}/v1/lab512/dev/receipts", base))
+        .post(format!("{base}/v1/lab512/dev/receipts"))
         .header("x-user-id", "00000000-0000-0000-0000-000000000099")
         .json(&json!({
             "body": {"name": "integration-test", "value": 42},
@@ -107,7 +107,7 @@ async fn test_full_pipeline_creates_receipt() {
     assert_eq!(resp.status(), StatusCode::OK, "pipeline failed: {}", resp.text().await.unwrap_or_default());
 
     let resp = client
-        .post(format!("{}/v1/lab512/dev/receipts", base))
+        .post(format!("{base}/v1/lab512/dev/receipts"))
         .header("x-user-id", "00000000-0000-0000-0000-000000000099")
         .json(&json!({
             "body": {"name": "integration-test-2", "value": 43},
@@ -140,7 +140,7 @@ async fn test_different_bodies_produce_different_cids() {
         let client = client.clone();
         let base = base.clone();
         async move {
-            client.post(format!("{}/v1/lab512/dev/receipts", base))
+            client.post(format!("{base}/v1/lab512/dev/receipts"))
                 .header("x-user-id", "00000000-0000-0000-0000-000000000099")
                 .json(&json!({
                     "body": body,

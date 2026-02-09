@@ -1,9 +1,7 @@
 
 use clap::{Parser, Subcommand};
-use std::fs::File;
 use std::io::{self, Read, Write};
-use std::path::PathBuf;
-use nrf_core::{Value, encode, decode, hash_bytes};
+use nrf_core::{encode, decode, hash_bytes};
 use serde_json::Value as J;
 use unicode_normalization::is_nfc;
 
@@ -63,7 +61,7 @@ fn to_hex_lower(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len()*2);
     for b in bytes {
         use std::fmt::Write;
-        write!(&mut s, "{:02x}", b).unwrap();
+        write!(&mut s, "{b:02x}").unwrap();
     }
     s
 }
@@ -77,8 +75,12 @@ fn json_to_nrf(v: &J) -> anyhow::Result<nrf_core::Value> {
             if !n.is_i64() { anyhow::bail!("floats not allowed; numbers must be i64"); }
             V::Int(n.as_i64().unwrap())
         }
-        J::String(s) => { if s.contains('\u{FEFF}') { anyhow::bail!("BOM (U+FEFF) forbidden"); } if !is_nfc(s) { anyhow::bail!("String must be NFC"); } V::String(s.clone()) },
-        J::Array(arr) => V::Array(arr.iter().map(|x| json_to_nrf(x)).collect::<anyhow::Result<Vec<_>>>()?),
+        J::String(s) => {
+            if s.contains('\u{FEFF}') { anyhow::bail!("BOM (U+FEFF) forbidden"); }
+            else if !is_nfc(s) { anyhow::bail!("String must be NFC"); }
+            V::String(s.clone())
+        },
+        J::Array(arr) => V::Array(arr.iter().map(json_to_nrf).collect::<anyhow::Result<Vec<_>>>()?),
         J::Object(map) => {
             if map.len() == 1 {
                 if let Some(J::String(hex)) = map.get("$bytes") {
@@ -167,34 +169,25 @@ fn read_to_bytes_maybe_stdin(path: &str) -> anyhow::Result<Vec<u8>> {
 
 fn write_bytes_maybe_stdout(path: Option<&str>, bytes: &[u8]) -> anyhow::Result<()> {
     match path {
-        Some("-") | None if path.is_none() => {
-            let mut stdout = io::stdout();
-            stdout.write_all(bytes)?;
-        }
-        Some(p) if p == "-" => {
+        Some("-") | None => {
             let mut stdout = io::stdout();
             stdout.write_all(bytes)?;
         }
         Some(p) => {
             std::fs::write(p, bytes)?;
         }
-        None => {}
     }
     Ok(())
 }
 
 fn write_string_maybe_stdout(path: Option<&str>, s: &str) -> anyhow::Result<()> {
     match path {
-        Some("-") | None if path.is_none() => {
-            print!("{s}");
-        }
-        Some(p) if p == "-" => {
+        Some("-") | None => {
             print!("{s}");
         }
         Some(p) => {
             std::fs::write(p, s)?;
         }
-        None => {}
     }
     Ok(())
 }

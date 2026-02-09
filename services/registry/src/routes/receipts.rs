@@ -62,7 +62,7 @@ async fn create_receipt(
 
     // --- Convert JSON body to NRF Value ---
     let body = json_to_nrf(&req.body)
-        .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, format!("body conversion: {}", e)))?;
+        .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, format!("body conversion: {e}")))?;
 
     // --- Runtime attestation (Article VIII) ---
     let attest_req = runtime::AttestationRequest {
@@ -71,7 +71,7 @@ async fn create_receipt(
         policy_id: req.policy_id.clone(),
     };
     let attest_resp = state.runtime.attest(&attest_req)
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("runtime attestation: {}", e)))?;
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("runtime attestation: {e}")))?;
 
     let rt_info = receipt::RuntimeInfo {
         name: attest_resp.info.name,
@@ -102,7 +102,7 @@ async fn create_receipt(
 
     let policy = receipt_gateway::ExistencePolicy;
     let result = receipt_gateway::execute(gateway_req, &policy, &state.signing_key, rt_info)
-        .map_err(|e| (axum::http::StatusCode::UNPROCESSABLE_ENTITY, format!("{}", e)))?;
+        .map_err(|e| (axum::http::StatusCode::UNPROCESSABLE_ENTITY, format!("{e}")))?;
 
     let receipt_json = serde_json::to_value(&result.receipt)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -184,7 +184,7 @@ fn json_to_nrf(v: &serde_json::Value) -> Result<nrf_core::Value, String> {
         }
         serde_json::Value::String(s) => {
             if let Some(hex_str) = s.strip_prefix("$bytes:") {
-                let bytes = hex::decode(hex_str).map_err(|e| format!("bad hex in $bytes: {}", e))?;
+                let bytes = hex::decode(hex_str).map_err(|e| format!("bad hex in $bytes: {e}"))?;
                 Ok(nrf_core::Value::Bytes(bytes))
             } else {
                 Ok(nrf_core::Value::String(s.clone()))

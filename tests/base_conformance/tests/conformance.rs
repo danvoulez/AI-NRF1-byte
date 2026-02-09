@@ -119,8 +119,7 @@ fn art1_1_rho_nfc_normalization() {
     assert_eq!(
         norm,
         Value::String("\u{00E9}".to_string()),
-        "ARTICLE I §1.1: ρ(NFD 'é') must produce NFC 'é', got {:?}",
-        norm
+        "ARTICLE I §1.1: ρ(NFD 'é') must produce NFC 'é', got {norm:?}"
     );
 }
 
@@ -196,8 +195,7 @@ fn art1_1_rho_passthrough_types() {
         let norm = rho::normalize(&v).expect("ρ normalize failed");
         assert_eq!(
             norm, v,
-            "ARTICLE I §1.1 VIOLATION: ρ must pass through {} unchanged, got {:?}",
-            label, norm
+            "ARTICLE I §1.1 VIOLATION: ρ must pass through {label} unchanged, got {norm:?}"
         );
     }
 }
@@ -218,8 +216,7 @@ fn art1_2_rho_idempotent() {
         r1, r2,
         "ARTICLE I §1.2 VIOLATION: ρ is NOT idempotent. \
          ρ(v) ≠ ρ(ρ(v)). This breaks the canonical guarantee. \
-         First: {:?}, Second: {:?}",
-        r1, r2
+         First: {r1:?}, Second: {r2:?}"
     );
 }
 
@@ -245,12 +242,11 @@ fn art1_2_rho_hash_stable() {
     assert_eq!(
         cid1, cid2,
         "ARTICLE I §1.2 VIOLATION: BLAKE3(encode(ρ(v))) is not stable. \
-         Same value produced different CIDs: {} vs {}",
-        cid1, cid2
+         Same value produced different CIDs: {cid1} vs {cid2}"
     );
     assert!(
         cid1.starts_with("b3:"),
-        "ARTICLE I §1.2: CID must start with 'b3:', got '{}'", cid1
+        "ARTICLE I §1.2: CID must start with 'b3:', got '{cid1}'"
     );
     assert_eq!(
         cid1.len(), 3 + 64,
@@ -327,15 +323,12 @@ fn art2_1_tamper_detection_single_bit() {
     let mut bytes = encode(&v);
     let last = bytes.len() - 1;
     bytes[last] ^= 0x01; // flip one bit
-    match decode(&bytes) {
-        Ok(tampered) => {
-            assert_ne!(
-                tampered, v,
-                "ARTICLE II §2.1 VIOLATION: single-bit tamper was not detected. \
-                 Flipped bit in encoding produced the same value."
-            );
-        }
-        Err(_) => {} // decode error is also correct — tamper detected
+    if let Ok(tampered) = decode(&bytes) {
+        assert_ne!(
+            tampered, v,
+            "ARTICLE II §2.1 VIOLATION: single-bit tamper was not detected. \
+             Flipped bit in encoding produced the same value."
+        );
     }
 }
 
@@ -450,7 +443,7 @@ fn art3_1_no_float_type_exists() {
         decode(&bad_bytes).is_err(),
         "ARTICLE III §3.1 VIOLATION: tag 0x08 was accepted. \
          There must be no float type. Tags 0x00-0x07 only. \
-         Error: {:?}", json // just to use the variable
+         Error: {json:?}" // just to use the variable
     );
 }
 
@@ -535,7 +528,7 @@ fn art4_1_receipt_tamper_body_detected() {
         result.is_err(),
         "ARTICLE IV §4.1 VIOLATION: body tamper was NOT detected. \
          Changing the body without updating body_cid must fail verify_integrity(). \
-         Error: {:?}", result
+         Error: {result:?}"
     );
 }
 
@@ -895,7 +888,7 @@ fn art5_1_only_three_acts_exist() {
         r2.receipt_cid = r2.compute_cid();
         assert!(
             r2.verify_integrity().is_ok(),
-            "ARTICLE V §5.1: act '{}' should be valid", act
+            "ARTICLE V §5.1: act '{act}' should be valid"
         );
     }
 }
@@ -916,7 +909,7 @@ fn art6_four_decisions_vocabulary() {
         r.receipt_cid = r.compute_cid();
         assert!(
             r.verify_integrity().is_ok(),
-            "ARTICLE VI: decision '{}' should be valid in a receipt", d
+            "ARTICLE VI: decision '{d}' should be valid in a receipt"
         );
     }
 }
@@ -935,6 +928,7 @@ fn art9_1_receipt_cid_covers_all_fields() {
     let baseline_cid = r.receipt_cid.clone();
 
     // Test each field mutation
+    #[allow(clippy::type_complexity)]
     let mutations: Vec<(&str, Box<dyn Fn(&mut receipt::Receipt)>)> = vec![
         ("issuer_did", Box::new(|r: &mut receipt::Receipt| r.issuer_did = "did:ubl:other".into())),
         ("act", Box::new(|r: &mut receipt::Receipt| r.act = "EVALUATE".into())),
@@ -949,9 +943,8 @@ fn art9_1_receipt_cid_covers_all_fields() {
         r2.receipt_cid = r2.compute_cid();
         assert_ne!(
             r2.receipt_cid, baseline_cid,
-            "ARTICLE IX §9.1 VIOLATION: changing '{}' did not change receipt_cid. \
-             No hidden state: every field must be covered by the CID.",
-            field
+            "ARTICLE IX §9.1 VIOLATION: changing '{field}' did not change receipt_cid. \
+             No hidden state: every field must be covered by the CID."
         );
     }
 }

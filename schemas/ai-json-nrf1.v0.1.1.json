@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ubl.agency/schemas/ai-json-nrf1.v0.1.1.json",
+  "title": "ai-json-nrf1 v0.1.1",
+  "description": "Strict JSON view of NRF-1.1 binary values. No floats, NFC strings, typed byte prefixes.",
+  "type": ["null", "boolean", "integer", "string", "array", "object"],
+  "$defs": {
+    "bytes32": {
+      "type": "string",
+      "pattern": "^b3:[0-9a-f]{64}$",
+      "description": "32-byte value as b3:<hex>"
+    },
+    "bytes16": {
+      "type": "string",
+      "pattern": "^b64:[A-Za-z0-9+/]{24}$",
+      "description": "16-byte value as b64:<base64>"
+    },
+    "bytes64": {
+      "type": "string",
+      "pattern": "^b64:[A-Za-z0-9+/]{88}$",
+      "description": "64-byte value as b64:<base64>"
+    },
+    "bytesGeneric": {
+      "type": "object",
+      "properties": {
+        "$bytes": { "type": "string" }
+      },
+      "required": ["$bytes"],
+      "additionalProperties": false,
+      "description": "Arbitrary-length bytes as {\"$bytes\": \"<base64>\"}"
+    },
+    "nrfValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "type": "string" },
+        { "$ref": "#/$defs/bytesGeneric" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nrfValue" }
+        },
+        {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/nrfValue" }
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "noFloats": "JSON numbers MUST be integers (no decimal point, no exponent)",
+    "stringsNFC": "All strings MUST be Unicode NFC normalized",
+    "noBOM": "No string may contain U+FEFF (BOM)",
+    "asciiDID": "Fields named 'did', 'kid', 'node', 'dst', 'src' MUST be ASCII-only",
+    "mapKeysSorted": "Object keys MUST be sorted by UTF-8 byte order",
+    "noNullValues": "Null-valued map entries MUST be omitted (absence ≠ null)"
+  }
+}

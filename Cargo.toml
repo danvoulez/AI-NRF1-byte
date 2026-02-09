@@ -29,10 +29,13 @@ members = [
 
   # impl/ crates
   "impl/rust/signers",
+  "impl/rust/ubl_json_view",
+  "impl/rust/ubl_capsule",
 
   # CLI / Tools
   "cli/nrf1",
   "tools/nrf1-cli",
+  "tools/ubl-cli",
 
   # Modules (MODULE phase)
   "modules/receipt-gateway",

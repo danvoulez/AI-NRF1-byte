@@ -1,0 +1,25 @@
+[package]
+name = "ubl_capsule"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "UBL Capsule v1: stable ID, seal (sign/verify), receipt hops"
+
+[features]
+default = []
+pq = []
+
+[dependencies]
+nrf-core = { path = "../nrf-core" }
+blake3 = "1"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand_core = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+thiserror = "1"
+
+[dev-dependencies]
+rand = "0.8"
+ubl_json_view = { path = "../ubl_json_view" }
+rand_core = { version = "0.6", features = ["getrandom"] }

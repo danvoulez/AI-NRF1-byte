@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let app = registry::build_router(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".into());
-    let addr = format!("0.0.0.0:{}", port);
+    let addr = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;

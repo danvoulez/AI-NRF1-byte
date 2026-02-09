@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
@@ -34,7 +35,7 @@ fn json_bytes_roundtrip_ok() {
         .stdout
         .clone();
     let s = String::from_utf8(out).unwrap();
-    assert!(s.contains(r#""$bytes":"48656c6c6f""#));
+    assert!(s.contains(r#""$bytes": "48656c6c6f""#));
 }
 
 #[test]

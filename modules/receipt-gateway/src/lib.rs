@@ -100,16 +100,16 @@ pub fn execute(
 
     // --- Step 1: ρ-normalize the body (Article I) ---
     let body = rho::normalize(&req.body)
-        .map_err(|e| GatewayError::RhoFailed(format!("{}", e)))?;
+        .map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
     let body_cid = rho::canonical_cid(&body)
-        .map_err(|e| GatewayError::RhoFailed(format!("{}", e)))?;
+        .map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
 
     // --- Step 2: Policy gate (Article VI) ---
     let context_cid = body_cid.clone();
     let eval_req = ubl_policy::EvalRequest {
         policy_id: req.policy_id.clone().unwrap_or_else(|| "existence/default@1".into()),
         context_cid,
-        input: serde_json::to_value(&body_to_json(&body)).unwrap_or_default(),
+        input: serde_json::to_value(body_to_json(&body)).unwrap_or_default(),
         pipeline_prev: req.pipeline_prev.clone(),
     };
     let eval_resp = policy_engine.evaluate(&eval_req)
@@ -131,11 +131,9 @@ pub fn execute(
 
     // --- Step 4: Build Receipt (Article IV §4.1) ---
     let decision_str = eval_resp.decision.as_str().to_string();
-    let effects = if eval_resp.decision == ubl_policy::Decision::Ghost {
-        None // GHO-001: GHOST ⇒ effects = None
-    } else {
-        None // no effects for now — modules add effects in the future
-    };
+    // GHO-001: GHOST ⇒ effects = None; no effects for now — modules add effects in the future
+    let effects: Option<nrf_core::Value> = None;
+    let _ = &eval_resp.decision; // acknowledge decision was checked
 
     let url = receipt::rich_url(
         &req.url_base,
@@ -425,7 +423,7 @@ mod tests {
             let mut req = test_request();
             req.act = act.to_string();
             let result = execute(req, &policy, &sk, test_rt())
-                .expect(&format!("pipeline should succeed for {}", act));
+                .unwrap_or_else(|_| panic!("pipeline should succeed for {act}"));
             assert_eq!(result.receipt.act, *act);
             assert!(result.receipt.verify(&vk));
         }
