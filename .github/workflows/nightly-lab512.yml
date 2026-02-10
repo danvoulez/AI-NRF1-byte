@@ -35,7 +35,7 @@ jobs:
 
       - name: Build (release)
         if: steps.skip.outputs.skip != 'true'
-        run: cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
+        run: cargo build --release -p ai-nrf1 -p ubl-cli -p registry
 
       - name: Publish locally (nightly)
         if: steps.skip.outputs.skip != 'true'
@@ -49,7 +49,7 @@ jobs:
 
           cp -f target/release/ai-nrf1 "${OUT}/ai-nrf1" || true
           cp -f target/release/ubl "${OUT}/ubl" || true
-          cp -f target/release/nrf1 "${OUT}/nrf1" || true
+          cp -f target/release/registry "${OUT}/registry" || true
 
           ln -sfn "${OUT}" "${BASE_DIR}/latest"
           echo "Published to ${OUT} (latest -> ${BASE_DIR}/latest)"

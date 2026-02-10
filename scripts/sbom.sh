@@ -26,8 +26,8 @@ mkdir -p "$DIST"
 syft dir:"$ROOT" -o cyclonedx-json > "$DIST/workspace.cdx.json"
 syft dir:"$ROOT" -o spdx-tag-value > "$DIST/workspace.spdx"
 
-# Target 2: CLI binaries if present
-for bin in "$ROOT/target/release/ai-nrf1" "$ROOT/target/release/ubl" "$ROOT/target/release/nrf1"; do
+# Target 2: official binaries if present
+for bin in "$ROOT/target/release/ai-nrf1" "$ROOT/target/release/ubl" "$ROOT/target/release/registry"; do
   if [[ -f "$bin" ]]; then
     name="$(basename "$bin")"
     syft file:"$bin" -o cyclonedx-json > "$DIST/${name}.cdx.json" || true

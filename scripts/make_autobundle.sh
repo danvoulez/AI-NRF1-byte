@@ -31,11 +31,13 @@ cp -r "$ROOT/impl/rust/policy-engine" "$TMP/impl/rust/" 2>/dev/null || true
 mkdir -p "$TMP/impl/python"
 cp -r "$ROOT/impl/python" "$TMP/impl/" || true
 
-# CLI binaries if available
-if [ -f "$ROOT/tools/nrf1-cli/target/release/nrf1" ]; then
-  mkdir -p "$TMP/bin"
-  cp "$ROOT/tools/nrf1-cli/target/release/nrf1" "$TMP/bin/"
-fi
+# Official binaries (if available)
+for bin in "$ROOT/target/release/ai-nrf1" "$ROOT/target/release/ubl" "$ROOT/target/release/registry"; do
+  if [ -f "$bin" ]; then
+    mkdir -p "$TMP/bin"
+    cp "$bin" "$TMP/bin/"
+  fi
+done
 
 # Test vectors & fuzz corpus (minimized + fixed) for offline reproduction
 mkdir -p "$TMP/testdata"

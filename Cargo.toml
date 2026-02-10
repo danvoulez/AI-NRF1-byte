@@ -35,7 +35,6 @@ members = [
 
   # CLI / Tools
   "cli/nrf1",
-  "tools/nrf1-cli",
   "tools/ubl-cli",
 
   # Modules (MODULE phase)

@@ -21,7 +21,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build (release)
-        run: cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
+        run: cargo build --release -p ai-nrf1 -p ubl-cli -p registry
 
       - name: Package artifacts
         shell: bash
@@ -36,13 +36,13 @@ jobs:
           if [[ "${RUNNER_OS}" == "Windows" ]]; then
             cp -f target/release/ai-nrf1.exe dist/pkg/ai-nrf1.exe
             cp -f target/release/ubl.exe dist/pkg/ubl.exe
-            cp -f target/release/nrf1.exe dist/pkg/nrf1.exe
-            (cd dist/pkg && 7z a "../base-${TAG}-${OS}-${ARCH}.zip" ai-nrf1.exe ubl.exe nrf1.exe)
+            cp -f target/release/registry.exe dist/pkg/registry.exe
+            (cd dist/pkg && 7z a "../base-${TAG}-${OS}-${ARCH}.zip" ai-nrf1.exe ubl.exe registry.exe)
           else
             cp -f target/release/ai-nrf1 dist/pkg/ai-nrf1
             cp -f target/release/ubl dist/pkg/ubl
-            cp -f target/release/nrf1 dist/pkg/nrf1
-            (cd dist/pkg && tar -czf "../base-${TAG}-${OS}-${ARCH}.tar.gz" ai-nrf1 ubl nrf1)
+            cp -f target/release/registry dist/pkg/registry
+            (cd dist/pkg && tar -czf "../base-${TAG}-${OS}-${ARCH}.tar.gz" ai-nrf1 ubl registry)
           fi
 
       - name: Upload artifacts
