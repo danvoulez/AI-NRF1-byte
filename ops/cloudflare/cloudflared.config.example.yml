@@ -1,0 +1,11 @@
+tunnel: ai-nrf1
+
+# Path to the credentials JSON created by `cloudflared tunnel create ai-nrf1`.
+# Example: /Users/danvoulez/.cloudflared/<UUID>.json
+credentials-file: /Users/danvoulez/.cloudflared/REPLACE_ME.json
+
+ingress:
+  - hostname: registry.ubl.agency
+    service: http://127.0.0.1:8791
+  - service: http_status:404
+

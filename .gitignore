@@ -15,3 +15,10 @@ __pycache__/
 
 # Local-only secret keys for vector generation
 tests/keys/
+
+# Local PM2 env for AI-NRF1 stack
+ops/pm2/local.env
+
+# Local Cloudflare Tunnel config/creds
+ops/cloudflare/cloudflared.config.yml
+ops/cloudflare/*.json

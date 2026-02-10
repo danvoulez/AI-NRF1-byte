@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PM2 wrapper for a clean, project-scoped daemon.
+export PM2_HOME="${PM2_HOME:-$HOME/.pm2-ai-nrf1}"
+
+exec pm2 "$@"
+
