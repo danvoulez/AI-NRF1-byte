@@ -23,7 +23,7 @@ if [ ! -f tests/keys/relay.sk ] || [ ! -f tests/keys/exec.sk ]; then
 fi
 
 echo "[vectors] signing capsule json"
-for name in capsule_ack capsule_ask capsule_nack capsule_expired; do
+for name in capsule_ack capsule_ask capsule_nack capsule_expired capsule_expired_skew; do
   "$UBL" cap sign "tests/vectors/capsule/${name}.json" --sk tests/keys/alice.sk -o "tests/vectors/capsule/${name}.signed.json"
   "$UBL" cap to-nrf "tests/vectors/capsule/${name}.signed.json" -o "tests/vectors/capsule/${name}.signed.nrf"
 done
@@ -33,6 +33,12 @@ echo "[vectors] building chain2 vector (2 hops)"
 "$UBL" cap receipt add tests/vectors/capsule/capsule_ack.chain2.signed.json --kind relay --node did:ubl:test:relay#key-1 --sk tests/keys/relay.sk --ts 1700000000100 -o tests/vectors/capsule/capsule_ack.chain2.signed.json
 "$UBL" cap receipt add tests/vectors/capsule/capsule_ack.chain2.signed.json --kind exec  --node did:ubl:test:exec#key-1  --sk tests/keys/exec.sk  --ts 1700000000200 -o tests/vectors/capsule/capsule_ack.chain2.signed.json
 "$UBL" cap to-nrf tests/vectors/capsule/capsule_ack.chain2.signed.json -o tests/vectors/capsule/capsule_ack.chain2.signed.nrf
+
+echo "[vectors] building ASK chain2 vector (2 hops)"
+"$UBL" cap sign tests/vectors/capsule/capsule_ask.json --sk tests/keys/alice.sk -o tests/vectors/capsule/capsule_ask.chain2.signed.json
+"$UBL" cap receipt add tests/vectors/capsule/capsule_ask.chain2.signed.json --kind relay --node did:ubl:test:relay#key-1 --sk tests/keys/relay.sk --ts 1700000001100 -o tests/vectors/capsule/capsule_ask.chain2.signed.json
+"$UBL" cap receipt add tests/vectors/capsule/capsule_ask.chain2.signed.json --kind exec  --node did:ubl:test:exec#key-1  --sk tests/keys/exec.sk  --ts 1700000001200 -o tests/vectors/capsule/capsule_ask.chain2.signed.json
+"$UBL" cap to-nrf tests/vectors/capsule/capsule_ask.chain2.signed.json -o tests/vectors/capsule/capsule_ask.chain2.signed.nrf
 
 echo "[vectors] building tamper vector (signed but mutated)"
 python3 - <<'PY'

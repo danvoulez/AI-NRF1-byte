@@ -125,6 +125,23 @@ fn expired_and_tampered_vectors_fail() {
     let err = ubl_capsule::seal::verify(&capsule, &pk).unwrap_err();
     assert!(matches!(err, ubl_capsule::seal::SealError::Expired { .. }));
 
+    let expired_skew_nrf = base.join("capsule_expired_skew.signed.nrf");
+    assert!(
+        expired_skew_nrf.exists(),
+        "missing vector file: {}",
+        expired_skew_nrf.display()
+    );
+    let bytes = std::fs::read(&expired_skew_nrf).expect("read vector");
+    let capsule = capsule_from_signed_nrf(&bytes);
+    assert!(matches!(
+        ubl_capsule::seal::verify(&capsule, &pk).unwrap_err(),
+        ubl_capsule::seal::SealError::Expired { .. }
+    ));
+    let opts = ubl_capsule::seal::VerifyOpts {
+        allowed_skew_ns: i64::MAX,
+    };
+    ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts).expect("skew should accept");
+
     let tampered_nrf = base.join("capsule_ack.tampered.signed.nrf");
     assert!(
         tampered_nrf.exists(),
@@ -135,4 +152,39 @@ fn expired_and_tampered_vectors_fail() {
     let capsule = capsule_from_signed_nrf(&bytes);
     let err = ubl_capsule::seal::verify(&capsule, &pk).unwrap_err();
     assert_eq!(err, ubl_capsule::seal::SealError::IdMismatch);
+}
+
+#[test]
+fn verify_ask_chain2_vector() {
+    let root = repo_root();
+    let base = root.join("tests/vectors/capsule");
+
+    let pk = read_pk(&base.join("alice.pk"));
+    let signed_nrf = base.join("capsule_ask.chain2.signed.nrf");
+    assert!(
+        signed_nrf.exists(),
+        "missing vector file: {}",
+        signed_nrf.display()
+    );
+
+    let bytes = std::fs::read(&signed_nrf).expect("read vector");
+    let capsule = capsule_from_signed_nrf(&bytes);
+    ubl_capsule::seal::verify(&capsule, &pk).expect("seal verify");
+
+    let keyring_path = base.join("keyring.json");
+    let keyring_s = std::fs::read_to_string(&keyring_path).expect("read keyring");
+    let keyring: std::collections::HashMap<String, String> =
+        serde_json::from_str(&keyring_s).expect("parse keyring");
+    let mut pks: std::collections::HashMap<String, ed25519_dalek::VerifyingKey> =
+        std::collections::HashMap::new();
+    for (node, pk_hex) in keyring {
+        let bytes = hex::decode(pk_hex.trim()).expect("pk hex");
+        let arr: [u8; 32] = bytes.try_into().expect("pk len");
+        let pk = ed25519_dalek::VerifyingKey::from_bytes(&arr).expect("pk bytes");
+        pks.insert(node, pk);
+    }
+    let resolve = |node: &str| -> Option<ed25519_dalek::VerifyingKey> { pks.get(node).copied() };
+    ubl_capsule::receipt::verify_chain(&capsule.id, &capsule.receipts, &resolve)
+        .expect("verify chain");
+    assert_eq!(capsule.receipts.len(), 2);
 }

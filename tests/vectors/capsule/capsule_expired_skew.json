@@ -1,0 +1,32 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "0000000000000000000000000000000000000000000000000000000000000000",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "dddddddddddddddddddddddddddddddd",
+    "ts": 1700000000004,
+    "act": "ATTEST",
+    "exp": 1700000000000000000
+  },
+  "env": {
+    "body": {
+      "v": "ubl-json/0.1.1",
+      "t": "record",
+      "agent": { "id": "did:ubl:test:alice", "name": "Alice" },
+      "intent": { "kind": "ATTEST", "name": "demo_expired_skew", "args": {} },
+      "ctx": {},
+      "decision": { "verdict": "ACK", "reason": "ok", "metrics": {} },
+      "evidence": { "cids": [], "urls": [] }
+    },
+    "evidence": []
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": []
+}
+

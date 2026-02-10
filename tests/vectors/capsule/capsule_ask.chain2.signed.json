@@ -1,0 +1,66 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "dbb980487ddf98e86fbcce230405bde8100564f25dde68c28ba3acefbbcabbce",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "11111111111111111111111111111111",
+    "ts": 1700000000001,
+    "act": "ASK",
+    "exp": 9223372036854775807
+  },
+  "env": {
+    "body": {
+      "agent": {
+        "id": "did:ubl:test:alice",
+        "name": "Alice"
+      },
+      "ctx": {},
+      "decision": {
+        "metrics": {},
+        "reason": "missing proof",
+        "verdict": "ASK"
+      },
+      "evidence": {
+        "cids": [],
+        "urls": []
+      },
+      "intent": {
+        "args": {},
+        "kind": "QUERY",
+        "name": "demo_ask"
+      },
+      "t": "record",
+      "v": "ubl-json/0.1.1"
+    },
+    "links": {
+      "prev": "b3:2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "a26502599c0e096eb86892e2bd2b541d2789f837e6664cc427bfd7dc5d3d403ecb153e7d9c046a8630315d88a439a44e05669ae4d5c9b0bd17b7fee2fea1e204",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": [
+    {
+      "id": "043ee93effbb9aa89992fd4884f9c27550cd366563263560b2ccb8f99a34eee3",
+      "of": "dbb980487ddf98e86fbcce230405bde8100564f25dde68c28ba3acefbbcabbce",
+      "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+      "kind": "relay",
+      "node": "did:ubl:test:relay#key-1",
+      "ts": 1700000001100,
+      "sig": "90b4f514ffc189dde1df5c3ce8a62144a43f3c71b32f399fbdd19e8087d69f302046aa9c67ec3db9fe415ba46ef4acd95f9b5816060b2983fe07974ea8f58c04"
+    },
+    {
+      "id": "f2342ed5ee9f2da8c43895b6c1af1d5edd916524fa6c37d77fd7cc1e316e90a0",
+      "of": "dbb980487ddf98e86fbcce230405bde8100564f25dde68c28ba3acefbbcabbce",
+      "prev": "043ee93effbb9aa89992fd4884f9c27550cd366563263560b2ccb8f99a34eee3",
+      "kind": "exec",
+      "node": "did:ubl:test:exec#key-1",
+      "ts": 1700000001200,
+      "sig": "c2e5ea66a01c78d5758d904acc4a4f0798666171439cf335188b4150792b575a2643dc7fbbabc21e3696dbd54edefd29ecfec08231b64ff432d0b5fe77919103"
+    }
+  ]
+}
