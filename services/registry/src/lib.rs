@@ -20,6 +20,9 @@ async fn health() -> Json<Health> {
 pub fn build_router(state: Arc<state::AppState>) -> Router {
     Router::new()
         .route("/health", get(health))
+        // K8s-style aliases (kept simple: if the process is serving, it's "ready").
+        .route("/healthz", get(health))
+        .route("/readyz", get(health))
         .nest("/v1", routes::receipts::router())
         .nest("/v1", routes::ghosts::router())
         .with_state(state)

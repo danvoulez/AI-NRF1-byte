@@ -35,6 +35,8 @@ Exemplos:
 cp ops/pm2/local.env.example ops/pm2/local.env
 ```
 
+O `ops/pm2/run-registry.sh` faz `source ops/pm2/local.env` (se existir) antes de executar o binário.
+
 2) Se for expor via Cloudflare Tunnel (domínio `ubl.agency`):
 
 - Siga `ops/cloudflare/README.md` para criar o tunnel e gerar `ops/cloudflare/cloudflared.config.yml`.
