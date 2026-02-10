@@ -20,6 +20,7 @@ members = [
   "crates/ubl-json",
   "crates/ubl-transport",
   "crates/ubl-policy",
+  "crates/ubl-replay",
 
   # Service layer (brand = ubl-*)
   "crates/ubl-auth",

@@ -4431,8 +4431,10 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "js-sys",
+ "nrf-core",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "ubl_capsule",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -4483,6 +4485,14 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ubl-replay"
+version = "0.1.0"
+dependencies = [
+ "lru",
+ "thiserror",
 ]
 
 [[package]]

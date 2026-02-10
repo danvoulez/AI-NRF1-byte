@@ -1,0 +1,11 @@
+[package]
+name = "ubl-replay"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Anti-replay cache (non-canonical): (hdr.src, hdr.nonce) LRU with TTL derived from hdr.exp"
+
+[dependencies]
+lru = "0.12"
+thiserror = "1"
+
