@@ -13,6 +13,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::{collections::HashMap, path::Path};
 
 #[derive(Parser)]
 #[command(name = "ubl", version, about = "UBL Capsule CLI")]
@@ -77,6 +78,15 @@ enum CapAction {
         /// Ed25519 public key file (32 bytes hex)
         #[arg(long)]
         pk: PathBuf,
+        /// Allowed clock skew for expiry checks (nanoseconds)
+        #[arg(long, default_value_t = 0)]
+        allowed_skew_ns: i64,
+        /// Also verify the receipts chain (requires `--keyring`)
+        #[arg(long)]
+        verify_chain: bool,
+        /// JSON file mapping node DID#key -> hex-encoded public key (32 bytes)
+        #[arg(long)]
+        keyring: Option<PathBuf>,
     },
     /// Receipt operations
     Receipt {
@@ -121,7 +131,19 @@ fn run(cli: Cli) -> Result<()> {
             CapAction::ToJson { input, output } => cmd_to_json(&input, &output),
             CapAction::Hash { input } => cmd_hash(&input),
             CapAction::Sign { input, sk, output } => cmd_sign(&input, &sk, &output),
-            CapAction::Verify { input, pk } => cmd_verify(&input, &pk),
+            CapAction::Verify {
+                input,
+                pk,
+                allowed_skew_ns,
+                verify_chain,
+                keyring,
+            } => cmd_verify(
+                &input,
+                &pk,
+                allowed_skew_ns,
+                verify_chain,
+                keyring.as_deref(),
+            ),
             CapAction::Receipt { action } => match action {
                 ReceiptAction::Add {
                     input,
@@ -183,13 +205,32 @@ fn cmd_sign(input: &str, sk_path: &PathBuf, output: &str) -> Result<()> {
     Ok(())
 }
 
-fn cmd_verify(input: &str, pk_path: &PathBuf) -> Result<()> {
+fn cmd_verify(
+    input: &str,
+    pk_path: &PathBuf,
+    allowed_skew_ns: i64,
+    verify_chain: bool,
+    keyring_path: Option<&Path>,
+) -> Result<()> {
     let json_str = read_input(input)?;
     let capsule: ubl_capsule::Capsule =
         serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
     let pk = load_verifying_key(pk_path)?;
-    ubl_capsule::seal::verify(&capsule, &pk).map_err(|e| anyhow!("{e}"))?;
-    println!("OK: seal verified");
+    let opts = ubl_capsule::seal::VerifyOpts { allowed_skew_ns };
+    ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts).map_err(|e| anyhow!("{e}"))?;
+
+    if verify_chain {
+        let keyring_path =
+            keyring_path.ok_or_else(|| anyhow!("Err.Args.MissingKeyring: --keyring required"))?;
+        let pks = load_keyring(keyring_path)?;
+        let resolve =
+            |node: &str| -> Option<ed25519_dalek::VerifyingKey> { pks.get(node).copied() };
+        ubl_capsule::receipt::verify_chain(&capsule.id, &capsule.receipts, &resolve)
+            .map_err(|e| anyhow!("{e}"))?;
+        println!("OK: seal + receipts chain verified");
+    } else {
+        println!("OK: seal verified");
+    }
     Ok(())
 }
 
@@ -236,6 +277,24 @@ fn cmd_keygen(prefix: &str) -> Result<()> {
     println!("Secret key: {sk_path}");
     println!("Public key: {pk_path}");
     Ok(())
+}
+
+fn load_keyring(path: &Path) -> Result<HashMap<String, ed25519_dalek::VerifyingKey>> {
+    let s = std::fs::read_to_string(path)
+        .with_context(|| format!("reading keyring {}", path.display()))?;
+    let m: HashMap<String, String> =
+        serde_json::from_str(&s).context("Err.Parse.InvalidKeyringJSON")?;
+    let mut out = HashMap::new();
+    for (node, pk_hex) in m {
+        let bytes = hex::decode(pk_hex.trim()).context("Err.Key.BadHex")?;
+        let arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("Err.Key.BadLength: expected 32 bytes (64 hex chars)"))?;
+        let pk =
+            ed25519_dalek::VerifyingKey::from_bytes(&arr).context("Err.Key.InvalidPublicKey")?;
+        out.insert(node, pk);
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------

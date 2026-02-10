@@ -14,6 +14,11 @@ use nrf_core::Value;
 use std::collections::BTreeMap;
 use thiserror::Error;
 
+#[cfg(feature = "metrics")]
+use crate::metrics_support::ensure_exporter;
+#[cfg(feature = "metrics")]
+use metrics::{counter, histogram};
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -30,6 +35,19 @@ pub enum HopError {
     NotASCII,
     #[error("Err.Hop.Fork: duplicate prev detected at receipt[{0}]")]
     Fork(usize),
+}
+
+#[cfg(feature = "metrics")]
+impl HopError {
+    fn code(&self) -> &'static str {
+        match self {
+            HopError::BadChain(_) => "BadChain",
+            HopError::BadSignature(_) => "BadSignature",
+            HopError::BadDomain => "BadDomain",
+            HopError::NotASCII => "NotASCII",
+            HopError::Fork(_) => "Fork",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -113,48 +131,73 @@ pub fn verify_chain(
     receipts: &[Receipt],
     resolve_pk: &dyn Fn(&str) -> Option<ed25519_dalek::VerifyingKey>,
 ) -> Result<(), HopError> {
-    let mut expected_prev = [0u8; 32]; // genesis
-    let mut seen_prevs = std::collections::HashSet::new();
+    #[cfg(feature = "metrics")]
+    let t0 = std::time::Instant::now();
+    #[cfg(feature = "metrics")]
+    ensure_exporter();
 
-    for (i, r) in receipts.iter().enumerate() {
-        // Check prev chain
-        if r.prev != expected_prev {
-            return Err(HopError::BadChain(i));
+    let result = (|| {
+        let mut expected_prev = [0u8; 32]; // genesis
+        let mut seen_prevs = std::collections::HashSet::new();
+
+        for (i, r) in receipts.iter().enumerate() {
+            // Check prev chain
+            if r.prev != expected_prev {
+                return Err(HopError::BadChain(i));
+            }
+
+            // Check for fork (duplicate prev)
+            if !seen_prevs.insert(r.prev) {
+                return Err(HopError::Fork(i));
+            }
+
+            // Check `of` matches capsule_id
+            if r.of != *capsule_id {
+                return Err(HopError::BadChain(i));
+            }
+
+            // Check node is ASCII
+            if !r.node.is_ascii() {
+                return Err(HopError::NotASCII);
+            }
+
+            // Verify receipt ID
+            let expected_id = compute_receipt_id(r);
+            if r.id != expected_id {
+                return Err(HopError::BadChain(i));
+            }
+
+            // Verify signature
+            let pk = resolve_pk(&r.node).ok_or(HopError::BadSignature(i))?;
+            let sig = ed25519_dalek::Signature::from_bytes(&r.sig);
+            use ed25519_dalek::Verifier;
+            pk.verify(&r.id, &sig)
+                .map_err(|_| HopError::BadSignature(i))?;
+
+            // Next hop's prev = this receipt's id
+            expected_prev = r.id;
         }
 
-        // Check for fork (duplicate prev)
-        if !seen_prevs.insert(r.prev) {
-            return Err(HopError::Fork(i));
+        Ok(())
+    })();
+
+    #[cfg(feature = "metrics")]
+    {
+        let ms = t0.elapsed().as_secs_f64() * 1000.0;
+        histogram!("capsule_receipt_chain_verify_ms").record(ms);
+        match &result {
+            Ok(()) => {
+                counter!("capsule_receipt_chain_verify_ok_total").increment(1);
+                counter!("capsule_receipt_hops_total").increment(receipts.len() as u64);
+            }
+            Err(e) => {
+                counter!("capsule_receipt_chain_verify_fail_total", "code" => e.code())
+                    .increment(1);
+            }
         }
-
-        // Check `of` matches capsule_id
-        if r.of != *capsule_id {
-            return Err(HopError::BadChain(i));
-        }
-
-        // Check node is ASCII
-        if !r.node.is_ascii() {
-            return Err(HopError::NotASCII);
-        }
-
-        // Verify receipt ID
-        let expected_id = compute_receipt_id(r);
-        if r.id != expected_id {
-            return Err(HopError::BadChain(i));
-        }
-
-        // Verify signature
-        let pk = resolve_pk(&r.node).ok_or(HopError::BadSignature(i))?;
-        let sig = ed25519_dalek::Signature::from_bytes(&r.sig);
-        use ed25519_dalek::Verifier;
-        pk.verify(&r.id, &sig)
-            .map_err(|_| HopError::BadSignature(i))?;
-
-        // Next hop's prev = this receipt's id
-        expected_prev = r.id;
     }
 
-    Ok(())
+    result
 }
 
 /// Create a new receipt hop and sign it.

@@ -46,6 +46,7 @@ members = [
 
   # WASM bindings
   "bindings/wasm/ai-nrf1-wasm",
+  "bindings/wasm/ubl-capsule-wasm",
 
   # Benchmarks
   "benches",

@@ -12,6 +12,11 @@ use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
+#[cfg(feature = "metrics")]
+use crate::metrics_support::ensure_exporter;
+#[cfg(feature = "metrics")]
+use metrics::{counter, histogram};
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -30,6 +35,20 @@ pub enum SealError {
     IdMismatch,
     #[error("Err.Hdr.Expired: capsule expired at {exp}, now={now}")]
     Expired { exp: i64, now: i64 },
+}
+
+#[cfg(feature = "metrics")]
+impl SealError {
+    fn code(&self) -> &'static str {
+        match self {
+            SealError::BadDomain => "BadDomain",
+            SealError::BadScope => "BadScope",
+            SealError::BadAudience => "BadAudience",
+            SealError::BadSignature => "BadSignature",
+            SealError::IdMismatch => "IdMismatch",
+            SealError::Expired { .. } => "Expired",
+        }
+    }
 }
 
 /// Options for capsule verification.
@@ -91,44 +110,67 @@ pub fn verify_with_opts(
     pk: &ed25519_dalek::VerifyingKey,
     opts: &VerifyOpts,
 ) -> Result<(), SealError> {
-    // Check domain
-    if c.domain != DOMAIN {
-        return Err(SealError::BadDomain);
-    }
+    #[cfg(feature = "metrics")]
+    let t0 = std::time::Instant::now();
+    #[cfg(feature = "metrics")]
+    ensure_exporter();
 
-    // Check scope
-    if c.seal.scope != "capsule" {
-        return Err(SealError::BadScope);
-    }
+    let result = (|| {
+        // Check domain
+        if c.domain != DOMAIN {
+            return Err(SealError::BadDomain);
+        }
 
-    // Check audience
-    if let Some(aud) = &c.seal.aud {
-        match &c.hdr.dst {
-            Some(dst) if dst == aud => {}
-            _ => return Err(SealError::BadAudience),
+        // Check scope
+        if c.seal.scope != "capsule" {
+            return Err(SealError::BadScope);
+        }
+
+        // Check audience
+        if let Some(aud) = &c.seal.aud {
+            match &c.hdr.dst {
+                Some(dst) if dst == aud => {}
+                _ => return Err(SealError::BadAudience),
+            }
+        }
+
+        // Check expiration
+        if let Some(exp) = c.hdr.exp {
+            let now = now_nanos_i64();
+            if now.saturating_sub(opts.allowed_skew_ns) > exp {
+                return Err(SealError::Expired { exp, now });
+            }
+        }
+
+        // Check ID stability
+        let computed = compute_id(c);
+        if c.id != computed {
+            return Err(SealError::IdMismatch);
+        }
+
+        // Verify Ed25519 signature
+        let payload_hash = signing_hash(c);
+        let sig = ed25519_dalek::Signature::from_bytes(&c.seal.sig);
+        use ed25519_dalek::Verifier;
+        pk.verify(&payload_hash, &sig)
+            .map_err(|_| SealError::BadSignature)
+    })();
+
+    #[cfg(feature = "metrics")]
+    {
+        let ms = t0.elapsed().as_secs_f64() * 1000.0;
+        histogram!("capsule_seal_verify_ms").record(ms);
+        match &result {
+            Ok(()) => {
+                counter!("capsule_seal_verify_ok_total").increment(1);
+            }
+            Err(e) => {
+                counter!("capsule_seal_verify_fail_total", "code" => e.code()).increment(1);
+            }
         }
     }
 
-    // Check expiration
-    if let Some(exp) = c.hdr.exp {
-        let now = now_nanos_i64();
-        if now.saturating_sub(opts.allowed_skew_ns) > exp {
-            return Err(SealError::Expired { exp, now });
-        }
-    }
-
-    // Check ID stability
-    let computed = compute_id(c);
-    if c.id != computed {
-        return Err(SealError::IdMismatch);
-    }
-
-    // Verify Ed25519 signature
-    let payload_hash = signing_hash(c);
-    let sig = ed25519_dalek::Signature::from_bytes(&c.seal.sig);
-    use ed25519_dalek::Verifier;
-    pk.verify(&payload_hash, &sig)
-        .map_err(|_| SealError::BadSignature)
+    result
 }
 
 // ---------------------------------------------------------------------------

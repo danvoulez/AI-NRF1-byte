@@ -12,6 +12,8 @@
 //! The `id` is stable: it does NOT change when receipts/signatures are added.
 
 pub mod id;
+#[cfg(feature = "metrics")]
+mod metrics_support;
 pub mod receipt;
 pub mod seal;
 pub mod types;

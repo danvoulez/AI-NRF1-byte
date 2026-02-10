@@ -52,3 +52,21 @@ jobs:
       - name: Build fuzz targets
         working-directory: impl/rust/nrf-core/fuzz
         run: cargo fuzz build
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Build WASM crates
+        run: >
+          cargo build
+          -p ai-nrf1-wasm
+          -p ubl-capsule-wasm
+          --target wasm32-unknown-unknown

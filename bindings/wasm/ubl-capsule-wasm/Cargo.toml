@@ -1,0 +1,22 @@
+[package]
+name = "ubl-capsule-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "WASM bindings for UBL Capsule: seal + receipt chain verification"
+repository = "https://github.com/danvoulez/AI-NRF1-byte"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ubl_capsule = { path = "../../../impl/rust/ubl_capsule" }
+ed25519-dalek = "2"
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+hex = "0.4"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
