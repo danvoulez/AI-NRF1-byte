@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
 use blake3::Hasher;
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // UBL Capsule v1 — BASE terrain
@@ -26,9 +26,9 @@ pub const HOP_DOMAIN: &str = "ubl-receipt/1.0";
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum ProofLevel {
-    Receipt,    // cheapest: engine receipt with hash chain + signature
-    Sirp,       // medium: INTENT + RESULT capsules, delivery + execution receipts
-    Bundle,     // full: everything + offline ZIP with manifest, policy, EER, sigs, QR
+    Receipt, // cheapest: engine receipt with hash chain + signature
+    Sirp,    // medium: INTENT + RESULT capsules, delivery + execution receipts
+    Bundle,  // full: everything + offline ZIP with manifest, policy, EER, sigs, QR
 }
 
 // ---------------------------------------------------------------------------
@@ -37,10 +37,10 @@ pub enum ProofLevel {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum CapsuleRole {
-    Intent,     // "I want to do X" — sent before execution
-    Result,     // "X happened" — sent after execution
-    Delivery,   // receiver acknowledges receipt of a capsule
-    Execution,  // executor confirms completion
+    Intent,    // "I want to do X" — sent before execution
+    Result,    // "X happened" — sent after execution
+    Delivery,  // receiver acknowledges receipt of a capsule
+    Execution, // executor confirms completion
 }
 
 // ---------------------------------------------------------------------------
@@ -49,10 +49,10 @@ pub enum CapsuleRole {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum EnvelopeType {
-    Record,     // single act record
-    Bundle,     // offline-verifiable bundle
-    Trace,      // distributed trace / audit trail
-    Query,      // read-only query
+    Record, // single act record
+    Bundle, // offline-verifiable bundle
+    Trace,  // distributed trace / audit trail
+    Query,  // read-only query
 }
 
 // ---------------------------------------------------------------------------
@@ -71,14 +71,14 @@ pub enum SigAlg {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Header {
-    pub src: String,                    // sender DID (ASCII-only)
-    pub dst: String,                    // receiver DID (ASCII-only)
-    pub nonce: Vec<u8>,                 // 16 bytes random
-    pub exp: i64,                       // expiry as epoch-nanos
+    pub src: String,    // sender DID (ASCII-only)
+    pub dst: String,    // receiver DID (ASCII-only)
+    pub nonce: Vec<u8>, // 16 bytes random
+    pub exp: i64,       // expiry as epoch-nanos
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chan: Option<String>,           // optional channel
+    pub chan: Option<String>, // optional channel
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ts: Option<i64>,               // optional sender timestamp (epoch-nanos)
+    pub ts: Option<i64>, // optional sender timestamp (epoch-nanos)
 }
 
 // ---------------------------------------------------------------------------
@@ -87,15 +87,15 @@ pub struct Header {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Intent {
-    pub kind: String,                   // ATTEST | EVALUATE | TRANSACT
-    pub name: String,                   // human-readable act name
+    pub kind: String, // ATTEST | EVALUATE | TRANSACT
+    pub name: String, // human-readable act name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Decision {
-    pub verdict: String,                // ALLOW | DENY | REQUIRE | GHOST
+    pub verdict: String, // ALLOW | DENY | REQUIRE | GHOST
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,7 +105,7 @@ pub struct Decision {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Evidence {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub cids: Vec<Vec<u8>>,            // BLAKE3 hashes (32 bytes each)
+    pub cids: Vec<Vec<u8>>, // BLAKE3 hashes (32 bytes each)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub urls: Vec<String>,
 }
@@ -122,14 +122,14 @@ pub struct Meta {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Links {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev: Option<Vec<u8>>,          // previous capsule ID (32 bytes)
+    pub prev: Option<Vec<u8>>, // previous capsule ID (32 bytes)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trace: Option<Vec<u8>>,         // trace root ID (32 bytes)
+    pub trace: Option<Vec<u8>>, // trace root ID (32 bytes)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Envelope {
-    pub t: EnvelopeType,                // record | bundle | trace | query
+    pub t: EnvelopeType, // record | bundle | trace | query
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<serde_json::Value>,
     pub intent: Intent,
@@ -150,13 +150,13 @@ pub struct Envelope {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Seal {
-    pub alg: SigAlg,                    // Ed25519 (now) | Dilithium3 (future)
-    pub kid: String,                    // DID#key-id (ASCII-only)
-    pub domain: String,                 // "ubl-capsule/1.0" — domain separation
-    pub scope: String,                  // "capsule"
+    pub alg: SigAlg,    // Ed25519 (now) | Dilithium3 (future)
+    pub kid: String,    // DID#key-id (ASCII-only)
+    pub domain: String, // "ubl-capsule/1.0" — domain separation
+    pub scope: String,  // "capsule"
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub aud: Option<String>,            // optional: bind to dst
-    pub sig: Vec<u8>,                   // Ed25519 = 64 bytes
+    pub aud: Option<String>, // optional: bind to dst
+    pub sig: Vec<u8>,   // Ed25519 = 64 bytes
 }
 
 // ---------------------------------------------------------------------------
@@ -165,12 +165,12 @@ pub struct Seal {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HopReceipt {
-    pub of: Vec<u8>,                    // capsule ID this hop receipts (32 bytes)
-    pub prev: Vec<u8>,                  // previous hop receipt hash (32 bytes, or zeros for first)
-    pub kind: String,                   // "relay" | "deliver" | "execute"
-    pub node: String,                   // node DID (ASCII-only)
-    pub ts: i64,                        // epoch-nanos
-    pub sig: Vec<u8>,                   // Ed25519 over BLAKE3({domain, of, prev, kind, node, ts})
+    pub of: Vec<u8>,   // capsule ID this hop receipts (32 bytes)
+    pub prev: Vec<u8>, // previous hop receipt hash (32 bytes, or zeros for first)
+    pub kind: String,  // "relay" | "deliver" | "execute"
+    pub node: String,  // node DID (ASCII-only)
+    pub ts: i64,       // epoch-nanos
+    pub sig: Vec<u8>,  // Ed25519 over BLAKE3({domain, of, prev, kind, node, ts})
 }
 
 impl HopReceipt {
@@ -206,8 +206,8 @@ impl HopReceipt {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Capsule {
-    pub v: String,                      // "ubl-capsule/1.0"
-    pub id: Vec<u8>,                    // BLAKE3 hash (32 bytes)
+    pub v: String,   // "ubl-capsule/1.0"
+    pub id: Vec<u8>, // BLAKE3 hash (32 bytes)
     pub hdr: Header,
     pub env: Envelope,
     pub seal: Seal,
@@ -291,11 +291,13 @@ impl Capsule {
                 }
             }
             "REQUIRE" => {} // REQUIRE has no structural constraint beyond the decision
-            other => return Err(if other.is_empty() {
-                "empty verdict"
-            } else {
-                "unknown verdict"
-            }),
+            other => {
+                return Err(if other.is_empty() {
+                    "empty verdict"
+                } else {
+                    "unknown verdict"
+                })
+            }
         }
         Ok(())
     }
@@ -319,7 +321,12 @@ pub struct SirpFlow {
 
 impl SirpFlow {
     pub fn new(intent: Capsule) -> Self {
-        Self { intent, delivery: None, execution: None, result: None }
+        Self {
+            intent,
+            delivery: None,
+            execution: None,
+            result: None,
+        }
     }
 
     pub fn is_complete(&self) -> bool {

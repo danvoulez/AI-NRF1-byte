@@ -62,6 +62,9 @@ fn header_value(h: &crate::types::Header) -> Value {
     if let Some(scope) = &h.scope {
         m.insert("scope".into(), Value::String(scope.clone()));
     }
+    if let Some(exp) = h.exp {
+        m.insert("exp".into(), Value::Int(exp));
+    }
     m.insert("src".into(), Value::String(h.src.clone()));
     m.insert("ts".into(), Value::Int(h.ts));
     Value::Map(m)
@@ -74,7 +77,12 @@ fn envelope_value(e: &crate::types::Envelope) -> Value {
     if !e.evidence.is_empty() {
         m.insert(
             "evidence".into(),
-            Value::Array(e.evidence.iter().map(|s| Value::String(s.clone())).collect()),
+            Value::Array(
+                e.evidence
+                    .iter()
+                    .map(|s| Value::String(s.clone()))
+                    .collect(),
+            ),
         );
     }
     if let Some(links) = &e.links {
@@ -136,6 +144,7 @@ mod tests {
                 ts: 1700000000000,
                 act: "ATTEST".into(),
                 scope: None,
+                exp: None,
             },
             env: Envelope {
                 body: serde_json::json!({"name": "test", "value": 42}),
@@ -177,7 +186,10 @@ mod tests {
         });
 
         let id_after = compute_id(&c);
-        assert_eq!(id_before, id_after, "ID must NOT change when receipts are added");
+        assert_eq!(
+            id_before, id_after,
+            "ID must NOT change when receipts are added"
+        );
     }
 
     #[test]
@@ -197,7 +209,10 @@ mod tests {
 
         c.receipts.clear();
         let id_cleared = compute_id(&c);
-        assert_eq!(id_base, id_cleared, "ID must NOT change when receipts are removed");
+        assert_eq!(
+            id_base, id_cleared,
+            "ID must NOT change when receipts are removed"
+        );
     }
 
     #[test]
@@ -214,7 +229,11 @@ mod tests {
         let c1 = make_capsule();
         let mut c2 = make_capsule();
         c2.hdr.act = "EVALUATE".into();
-        assert_ne!(compute_id(&c1), compute_id(&c2), "different hdr → different ID");
+        assert_ne!(
+            compute_id(&c1),
+            compute_id(&c2),
+            "different hdr → different ID"
+        );
     }
 
     #[test]
@@ -222,7 +241,11 @@ mod tests {
         let c1 = make_capsule();
         let mut c2 = make_capsule();
         c2.env.body = serde_json::json!({"name": "different"});
-        assert_ne!(compute_id(&c1), compute_id(&c2), "different env → different ID");
+        assert_ne!(
+            compute_id(&c1),
+            compute_id(&c2),
+            "different env → different ID"
+        );
     }
 
     #[test]
@@ -230,7 +253,11 @@ mod tests {
         let c1 = make_capsule();
         let mut c2 = make_capsule();
         c2.domain = "ubl-capsule/2.0".into();
-        assert_ne!(compute_id(&c1), compute_id(&c2), "different domain → different ID");
+        assert_ne!(
+            compute_id(&c1),
+            compute_id(&c2),
+            "different domain → different ID"
+        );
     }
 
     #[test]

@@ -1,5 +1,9 @@
-use axum::{extract::{State, Path}, routing::post, Json, Router};
-use serde::{Serialize, Deserialize};
+use axum::{
+    extract::{Path, State},
+    routing::post,
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -39,8 +43,7 @@ pub struct ReceiptResp {
 }
 
 pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/:app/:tenant/receipts", post(create_receipt))
+    Router::new().route("/:app/:tenant/receipts", post(create_receipt))
 }
 
 // =========================================================================
@@ -57,12 +60,16 @@ async fn create_receipt(
     use crate::middleware::rbac;
     use runtime::RuntimeAttestation;
 
-    let user_id = rbac::parse_user_id(&headers)
-        .map_err(|s| (s, "missing or invalid x-user-id".into()))?;
+    let user_id =
+        rbac::parse_user_id(&headers).map_err(|s| (s, "missing or invalid x-user-id".into()))?;
 
     // --- Convert JSON body to NRF Value ---
-    let body = json_to_nrf(&req.body)
-        .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, format!("body conversion: {e}")))?;
+    let body = json_to_nrf(&req.body).map_err(|e| {
+        (
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("body conversion: {e}"),
+        )
+    })?;
 
     // --- Runtime attestation (Article VIII) ---
     let attest_req = runtime::AttestationRequest {
@@ -70,8 +77,12 @@ async fn create_receipt(
         act: req.act.clone(),
         policy_id: req.policy_id.clone(),
     };
-    let attest_resp = state.runtime.attest(&attest_req)
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("runtime attestation: {e}")))?;
+    let attest_resp = state.runtime.attest(&attest_req).map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("runtime attestation: {e}"),
+        )
+    })?;
 
     let rt_info = receipt::RuntimeInfo {
         name: attest_resp.info.name,
@@ -83,8 +94,13 @@ async fn create_receipt(
     };
 
     let id = Uuid::now_v7();
-    let url_base = format!("{}/{}/{}/receipts/{}.json",
-        state.cfg.public_base.trim_end_matches('/'), app, tenant, id);
+    let url_base = format!(
+        "{}/{}/{}/receipts/{}.json",
+        state.cfg.public_base.trim_end_matches('/'),
+        app,
+        tenant,
+        id
+    );
 
     let nonce: Vec<u8> = (0..16).map(|_| rand::random::<u8>()).collect();
 
@@ -117,10 +133,15 @@ async fn create_receipt(
 
         let receipt_entry = LedgerEntry::now(
             LedgerEvent::ReceiptCreated,
-            &app, &tenant,
-            Some(user_id), vec![],
-            id, &result.receipt.receipt_cid, &result.receipt.issuer_did,
-            Some(decision_str.clone()), receipt_json,
+            &app,
+            &tenant,
+            Some(user_id),
+            vec![],
+            id,
+            &result.receipt.receipt_cid,
+            &result.receipt.issuer_did,
+            Some(decision_str.clone()),
+            receipt_json,
         );
         if let Err(e) = state.ledger.append(&receipt_entry).await {
             tracing::warn!("ledger append (receipt) failed: {}", e);
@@ -128,10 +149,15 @@ async fn create_receipt(
 
         let ghost_entry = LedgerEntry::now(
             LedgerEvent::GhostCreated,
-            &app, &tenant,
-            Some(user_id), vec![],
-            ghost_id, &result.ghost.ghost_cid, &result.ghost.wbe.who,
-            None, ghost_json,
+            &app,
+            &tenant,
+            Some(user_id),
+            vec![],
+            ghost_id,
+            &result.ghost.ghost_cid,
+            &result.ghost.wbe.who,
+            None,
+            ghost_json,
         );
         if let Err(e) = state.ledger.append(&ghost_entry).await {
             tracing::warn!("ledger append (ghost) failed: {}", e);

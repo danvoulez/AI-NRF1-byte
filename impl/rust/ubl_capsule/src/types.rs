@@ -37,6 +37,9 @@ pub struct Header {
     /// Scope (optional)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
+    /// Expiration (epoch-nanos, optional)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exp: Option<i64>,
 }
 
 /// The payload envelope.
@@ -107,14 +110,20 @@ pub struct Receipt {
 mod hex_bytes_32 {
     use serde::{self, Deserialize, Deserializer, Serializer};
     pub fn serialize<S>(bytes: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&hex::encode(bytes))
     }
     pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         let s = String::deserialize(deserializer)?;
         let v = hex::decode(&s).map_err(serde::de::Error::custom)?;
-        let arr: [u8; 32] = v.try_into().map_err(|_| serde::de::Error::custom("expected 32 bytes"))?;
+        let arr: [u8; 32] = v
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("expected 32 bytes"))?;
         Ok(arr)
     }
 }
@@ -122,14 +131,20 @@ mod hex_bytes_32 {
 mod hex_bytes_16 {
     use serde::{self, Deserialize, Deserializer, Serializer};
     pub fn serialize<S>(bytes: &[u8; 16], serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&hex::encode(bytes))
     }
     pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 16], D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         let s = String::deserialize(deserializer)?;
         let v = hex::decode(&s).map_err(serde::de::Error::custom)?;
-        let arr: [u8; 16] = v.try_into().map_err(|_| serde::de::Error::custom("expected 16 bytes"))?;
+        let arr: [u8; 16] = v
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("expected 16 bytes"))?;
         Ok(arr)
     }
 }
@@ -137,14 +152,20 @@ mod hex_bytes_16 {
 mod hex_bytes_64 {
     use serde::{self, Deserialize, Deserializer, Serializer};
     pub fn serialize<S>(bytes: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&hex::encode(bytes))
     }
     pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 64], D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         let s = String::deserialize(deserializer)?;
         let v = hex::decode(&s).map_err(serde::de::Error::custom)?;
-        let arr: [u8; 64] = v.try_into().map_err(|_| serde::de::Error::custom("expected 64 bytes"))?;
+        let arr: [u8; 64] = v
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("expected 64 bytes"))?;
         Ok(arr)
     }
 }

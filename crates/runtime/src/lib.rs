@@ -1,5 +1,5 @@
-use nrf_core::{Value, rho};
-use serde::{Serialize, Deserialize};
+use nrf_core::{rho, Value};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
 
@@ -99,17 +99,20 @@ impl RuntimeInfo {
     pub fn to_canonical_value(&self) -> Result<Value, RuntimeError> {
         let mut m = BTreeMap::new();
 
-        m.insert("binary_sha256".into(), Value::String(self.binary_sha256.clone()));
+        m.insert(
+            "binary_sha256".into(),
+            Value::String(self.binary_sha256.clone()),
+        );
 
         if !self.certs.is_empty() {
-            let certs: Vec<Value> = self.certs.iter()
-                .map(|c| Value::Bytes(c.clone()))
-                .collect();
+            let certs: Vec<Value> = self.certs.iter().map(|c| Value::Bytes(c.clone())).collect();
             m.insert("certs".into(), Value::Array(certs));
         }
 
         if !self.env.is_empty() {
-            let env_map: BTreeMap<String, Value> = self.env.iter()
+            let env_map: BTreeMap<String, Value> = self
+                .env
+                .iter()
                 .map(|(k, v)| (k.clone(), Value::String(v.clone())))
                 .collect();
             m.insert("env".into(), Value::Map(env_map));
@@ -125,8 +128,7 @@ impl RuntimeInfo {
         let v = Value::Map(m);
 
         // ρ-normalize: NFC strings, strip nulls, sort keys
-        rho::normalize(&v)
-            .map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
+        rho::normalize(&v).map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
     }
 
     /// Compute the CID of this RuntimeInfo (ρ-canonical).
@@ -135,8 +137,7 @@ impl RuntimeInfo {
     /// Two identical runtimes produce the same CID. Always.
     pub fn canonical_cid(&self) -> Result<String, RuntimeError> {
         let v = self.to_canonical_value()?;
-        rho::canonical_cid(&v)
-            .map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
+        rho::canonical_cid(&v).map_err(|e| RuntimeError::RhoFailed(format!("{e}")))
     }
 
     /// Full validation: structure + ρ-canonicality.
@@ -144,8 +145,7 @@ impl RuntimeInfo {
         self.validate_structure()?;
         // Verify ρ-canonicality: normalize and check it doesn't change
         let v = self.to_canonical_value()?;
-        rho::validate(&v)
-            .map_err(|e| RuntimeError::NotCanonical(format!("{e}")))?;
+        rho::validate(&v).map_err(|e| RuntimeError::NotCanonical(format!("{e}")))?;
         Ok(())
     }
 }
@@ -161,15 +161,15 @@ impl RuntimeInfo {
 /// The input to a runtime attestation: what are we about to execute?
 #[derive(Debug, Clone)]
 pub struct AttestationRequest {
-    pub input_cid: String,          // CID of the input being processed
-    pub act: String,                // ATTEST | EVALUATE | TRANSACT
-    pub policy_id: Option<String>,  // which policy is being applied
+    pub input_cid: String,         // CID of the input being processed
+    pub act: String,               // ATTEST | EVALUATE | TRANSACT
+    pub policy_id: Option<String>, // which policy is being applied
 }
 
 /// The output of a runtime attestation: proof of execution environment.
 #[derive(Debug, Clone)]
 pub struct AttestationResponse {
-    pub info: RuntimeInfo,          // the canonical runtime info
+    pub info: RuntimeInfo,             // the canonical runtime info
     pub reasoning_cid: Option<String>, // CID of the reasoning output (if applicable)
 }
 
@@ -270,7 +270,10 @@ mod tests {
     #[test]
     fn runtime_info_validates_ok() {
         let info = test_info();
-        assert!(info.validate().is_ok(), "valid RuntimeInfo must pass validation");
+        assert!(
+            info.validate().is_ok(),
+            "valid RuntimeInfo must pass validation"
+        );
     }
 
     #[test]

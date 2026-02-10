@@ -11,11 +11,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Test (core)
-        working-directory: impl/rust/ai-nrf1
-        run: cargo test --verbose
-      - name: Test (compat_cbor)
-        working-directory: impl/rust/ai-nrf1
-        run: cargo test --features compat_cbor --verbose
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: clippy (base)
+        run: >
+          cargo clippy
+          -p nrf-core
+          -p ai-nrf1
+          -p ubl_json_view
+          -p ubl_capsule
+          --all-targets
+          --all-features
+          -- -D warnings
+      - name: test (base)
+        run: >
+          cargo test
+          -p nrf-core
+          -p ai-nrf1
+          -p ubl_json_view
+          -p ubl_capsule
+          --all-features
+          --locked
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: fuzz-smoke
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Build fuzz targets
+        working-directory: impl/rust/nrf-core/fuzz
+        run: cargo fuzz build

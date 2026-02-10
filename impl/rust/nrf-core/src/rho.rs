@@ -25,10 +25,10 @@
 // ---------------------------------------------------------------------------
 
 use crate::Value;
-use std::collections::BTreeMap;
-use unicode_normalization::UnicodeNormalization;
 use regex::Regex;
+use std::collections::BTreeMap;
 use std::sync::LazyLock;
+use unicode_normalization::UnicodeNormalization;
 
 // ---------------------------------------------------------------------------
 // Error type for ρ violations that cannot be auto-fixed
@@ -55,13 +55,11 @@ impl std::fmt::Display for RhoError {
 // Regex patterns (compiled once)
 // ---------------------------------------------------------------------------
 
-static RE_DECIMAL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$").unwrap()
-});
+static RE_DECIMAL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$").unwrap());
 
-static RE_TIMESTAMP: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$").unwrap()
-});
+static RE_TIMESTAMP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$").unwrap());
 
 // ---------------------------------------------------------------------------
 // The ρ function — the heart of the system
@@ -256,13 +254,15 @@ pub fn validate(v: &Value) -> Result<(), RhoError> {
             // Check for null values that should have been stripped
             for (k, val) in orig {
                 if *val == Value::Null && !norm.contains_key(k) {
-                    return Err(RhoError::InvalidDecimal(
-                        format!("map key '{k}' has null value (absence ≠ null)"),
-                    ));
+                    return Err(RhoError::InvalidDecimal(format!(
+                        "map key '{k}' has null value (absence ≠ null)"
+                    )));
                 }
             }
         }
-        Err(RhoError::InvalidDecimal("value is not in ρ-normal form".to_string()))
+        Err(RhoError::InvalidDecimal(
+            "value is not in ρ-normal form".to_string(),
+        ))
     } else {
         Ok(())
     }

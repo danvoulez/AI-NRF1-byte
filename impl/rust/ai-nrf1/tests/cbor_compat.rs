@@ -1,5 +1,5 @@
 #![cfg(feature = "compat_cbor")]
-use ai_ai_nrf1::{Value, encode, decode};
+use ai_nrf1::{decode, encode, Value};
 use std::collections::BTreeMap;
 
 #[test]
@@ -47,11 +47,9 @@ fn cbor_text_must_be_nfc() {
     // For simplicity we serialize via ciborium
     use ciborium::value::Value as Cbor;
     let key = Cbor::Text("e\u{0301}".to_string()); // NFD
-    let m = Cbor::Map(vec![(key, Cbor::Integer(0i128.into()))]);
+    let m = Cbor::Map(vec![(key, Cbor::Integer(0i64.into()))]);
     let mut buf = Vec::new();
-    let mut ser = ciborium::ser::Serializer::new(&mut buf);
-    ser.set_sort_maps(true);
-    m.serialize(&mut ser).unwrap();
+    ciborium::ser::into_writer(&m, &mut buf).unwrap();
     let err = ai_nrf1::compat_cbor::cbor::from_slice(&buf).unwrap_err();
     let _ = err;
 }

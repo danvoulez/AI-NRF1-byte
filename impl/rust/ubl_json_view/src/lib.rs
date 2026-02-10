@@ -74,9 +74,7 @@ pub fn to_json(v: &Value) -> serde_json::Value {
         Value::Int(n) => serde_json::json!(*n),
         Value::String(s) => serde_json::Value::String(s.clone()),
         Value::Bytes(b) => bytes_to_json(b),
-        Value::Array(items) => {
-            serde_json::Value::Array(items.iter().map(to_json).collect())
-        }
+        Value::Array(items) => serde_json::Value::Array(items.iter().map(to_json).collect()),
         Value::Map(m) => {
             let obj: serde_json::Map<String, serde_json::Value> =
                 m.iter().map(|(k, val)| (k.clone(), to_json(val))).collect();
@@ -173,7 +171,9 @@ fn parse_string_or_bytes(s: &str) -> Result<Value, JsonViewError> {
         let hex_str = &s[3..];
         let bytes = nrf_core::parse_hex_lower(hex_str).map_err(|e| match e {
             nrf_core::Error::HexOddLength => JsonViewError::OddHex,
-            nrf_core::Error::HexUppercase | nrf_core::Error::HexInvalidChar => JsonViewError::BadHex,
+            nrf_core::Error::HexUppercase | nrf_core::Error::HexInvalidChar => {
+                JsonViewError::BadHex
+            }
             _ => JsonViewError::BadHex,
         })?;
         return Ok(Value::Bytes(bytes));
@@ -446,7 +446,10 @@ mod tests {
 
     #[test]
     fn reject_non_ascii_did() {
-        assert_eq!(validate_ascii("did:ubl:café").unwrap_err(), JsonViewError::NotASCII);
+        assert_eq!(
+            validate_ascii("did:ubl:café").unwrap_err(),
+            JsonViewError::NotASCII
+        );
     }
 
     #[test]

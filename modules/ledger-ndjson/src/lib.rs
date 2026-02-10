@@ -32,8 +32,7 @@ impl NdjsonLedger {
     }
 
     pub fn from_env() -> Self {
-        let dir = std::env::var("LEDGER_DIR")
-            .unwrap_or_else(|_| "./data/ledger".into());
+        let dir = std::env::var("LEDGER_DIR").unwrap_or_else(|_| "./data/ledger".into());
         Self::new(dir)
     }
 }

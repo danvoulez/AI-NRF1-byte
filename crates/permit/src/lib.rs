@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use ed25519_dalek::{Signer, Verifier, SigningKey, VerifyingKey, Signature};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use nrf1::Value;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
@@ -17,29 +17,29 @@ use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Permit {
-    pub v: String,                              // "permit-v1"
-    pub permit_cid: String,                     // b3:<hex> over NRF(without sig)
+    pub v: String,          // "permit-v1"
+    pub permit_cid: String, // b3:<hex> over NRF(without sig)
 
     // --- what was decided ---
-    pub request_cid: String,                    // CID of the original request
-    pub decision: String,                       // ALLOW (only ALLOW gets a permit)
-    pub input_hash: String,                     // b3:<hex> of the input that was evaluated
+    pub request_cid: String, // CID of the original request
+    pub decision: String,    // ALLOW (only ALLOW gets a permit)
+    pub input_hash: String,  // b3:<hex> of the input that was evaluated
 
     // --- who authorized ---
-    pub issuer_did: String,                     // DID of the authority (TDLN)
+    pub issuer_did: String, // DID of the authority (TDLN)
 
     // --- bounds ---
-    pub issued_at: i64,                         // unix nanos
-    pub expires_at: i64,                        // unix nanos — permit is invalid after this
+    pub issued_at: i64,  // unix nanos
+    pub expires_at: i64, // unix nanos — permit is invalid after this
 
     // --- scope ---
-    pub act: String,                            // ATTEST | EVALUATE | TRANSACT
+    pub act: String, // ATTEST | EVALUATE | TRANSACT
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<String>,                 // which policy was applied
+    pub policy: Option<String>, // which policy was applied
 
     // --- signature (omitted from NRF hash) ---
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sig: Option<Vec<u8>>,                   // Ed25519(BLAKE3(NRF(without sig)))
+    pub sig: Option<Vec<u8>>, // Ed25519(BLAKE3(NRF(without sig)))
 }
 
 impl Permit {
@@ -53,7 +53,9 @@ impl Permit {
         m.insert("input_hash".into(), String(self.input_hash.clone()));
         m.insert("issued_at".into(), Int(self.issued_at));
         m.insert("issuer_did".into(), String(self.issuer_did.clone()));
-        if let Some(p) = &self.policy { m.insert("policy".into(), String(p.clone())); }
+        if let Some(p) = &self.policy {
+            m.insert("policy".into(), String(p.clone()));
+        }
         m.insert("request_cid".into(), String(self.request_cid.clone()));
         m.insert("v".into(), String(self.v.clone()));
         Map(m)
@@ -139,7 +141,9 @@ pub fn verify_permit(
     let bytes = nrf1::encode_stream(&permit.nrf_without_sig());
     let digest = blake3::hash(&bytes);
     let sig = Signature::from_slice(sig_bytes).map_err(|_| PermitError::BadSignature)?;
-    authority_key.verify(digest.as_bytes(), &sig).map_err(|_| PermitError::BadSignature)?;
+    authority_key
+        .verify(digest.as_bytes(), &sig)
+        .map_err(|_| PermitError::BadSignature)?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
-use permit::*;
 use ed25519_dalek::SigningKey;
+use permit::*;
 
 fn make_test_permit() -> Permit {
     Permit {

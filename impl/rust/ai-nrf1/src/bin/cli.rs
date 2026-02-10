@@ -33,11 +33,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut i = 2;
     while i < args.len() {
         match args[i].as_str() {
-            "--in" => { i+=1; in_fmt = Some(args.get(i).map(|s| s.as_str()).unwrap_or("")); }
-            "--out" => { i+=1; out_fmt = Some(args.get(i).map(|s| s.as_str()).unwrap_or("")); }
+            "--in" => {
+                i += 1;
+                in_fmt = Some(args.get(i).map(|s| s.as_str()).unwrap_or(""));
+            }
+            "--out" => {
+                i += 1;
+                out_fmt = Some(args.get(i).map(|s| s.as_str()).unwrap_or(""));
+            }
             _ => {}
         }
-        i+=1;
+        i += 1;
     }
     let in_fmt = in_fmt.ok_or("missing --in")?;
     let out_fmt = out_fmt.ok_or("missing --out")?;
@@ -46,9 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Parse to Value
     let value = match in_fmt {
-        "nrf" => {
-            ai_nrf1::decode(&data)?
-        }
+        "nrf" => ai_nrf1::decode(&data)?,
         "cbor" => {
             #[cfg(feature = "compat_cbor")]
             {

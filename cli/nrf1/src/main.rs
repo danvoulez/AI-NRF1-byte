@@ -4,7 +4,11 @@ use std::io::{Read, Write};
 use unicode_normalization::is_nfc;
 
 #[derive(Parser)]
-#[command(name = "nrf1", version = "0.4.0", about = "ai-nrf1 (UBL-Byte) CLI — encode/decode canonical bytes")]
+#[command(
+    name = "nrf1",
+    version = "0.4.0",
+    about = "ai-nrf1 (UBL-Byte) CLI — encode/decode canonical bytes"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

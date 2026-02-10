@@ -1,11 +1,14 @@
-
 use clap::{Parser, Subcommand};
-use std::io::{self, Read, Write};
-use nrf_core::{encode, decode, hash_bytes};
+use nrf_core::{decode, encode, hash_bytes};
 use serde_json::Value as J;
+use std::io::{self, Read, Write};
 /// ai-nrf1 (UBL-Byte) CLI: encode/decode/hash
 #[derive(Parser)]
-#[command(name="nrf1", version, about="ai-nrf1 (UBL-Byte) CLI — encode/decode/hash over canonical bytes")]
+#[command(
+    name = "nrf1",
+    version,
+    about = "ai-nrf1 (UBL-Byte) CLI — encode/decode/hash over canonical bytes"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -55,14 +58,20 @@ fn json_to_nrf(v: &J) -> anyhow::Result<nrf_core::Value> {
         J::Null => V::Null,
         J::Bool(b) => V::Bool(*b),
         J::Number(n) => {
-            if !n.is_i64() { anyhow::bail!("floats not allowed; numbers must be i64"); }
+            if !n.is_i64() {
+                anyhow::bail!("floats not allowed; numbers must be i64");
+            }
             V::Int(n.as_i64().unwrap())
         }
         J::String(s) => {
             nrf_core::validate_nfc(s).map_err(|e| anyhow::anyhow!("{e}"))?;
             V::String(s.clone())
-        },
-        J::Array(arr) => V::Array(arr.iter().map(json_to_nrf).collect::<anyhow::Result<Vec<_>>>()?),
+        }
+        J::Array(arr) => V::Array(
+            arr.iter()
+                .map(json_to_nrf)
+                .collect::<anyhow::Result<Vec<_>>>()?,
+        ),
         J::Object(map) => {
             if map.len() == 1 {
                 if let Some(J::String(hex)) = map.get("$bytes") {
@@ -101,7 +110,6 @@ fn nrf_to_json(v: &nrf_core::Value) -> J {
     }
 }
 
-
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
@@ -123,7 +131,11 @@ fn main() -> anyhow::Result<()> {
             let bytes = read_to_bytes_maybe_stdin(&input)?;
             let h = hash_bytes(&bytes);
             let hex = hex::encode(h);
-            if tag { println!("b3:{hex}"); } else { println!("{hex}"); }
+            if tag {
+                println!("b3:{hex}");
+            } else {
+                println!("{hex}");
+            }
         }
     }
     Ok(())

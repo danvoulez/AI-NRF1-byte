@@ -76,6 +76,7 @@ impl From<io::Error> for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Encode value with magic prefix.
+#[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all))]
 pub fn encode(value: &Value) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.extend_from_slice(&MAGIC);
@@ -124,6 +125,7 @@ fn encode_value(buf: &mut Vec<u8>, v: &Value) {
 }
 
 /// Decode from full buffer (with magic) and reject trailing bytes.
+#[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all, fields(len = data.len())))]
 pub fn decode(data: &[u8]) -> Result<Value> {
     if data.len() < 4 {
         return Err(Error::InvalidMagic);
@@ -241,10 +243,12 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
     }
 }
 
+#[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all, fields(len = data.len())))]
 pub fn hash_bytes(data: &[u8]) -> [u8; 32] {
     *blake3::hash(data).as_bytes()
 }
 
+#[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all))]
 pub fn hash_value(v: &Value) -> [u8; 32] {
     let bytes = encode(v);
     hash_bytes(&bytes)
@@ -289,8 +293,7 @@ pub fn parse_hex_lower(s: &str) -> Result<Vec<u8>> {
     }
     let mut out = Vec::with_capacity(s.len() / 2);
     for i in (0..s.len()).step_by(2) {
-        let b = u8::from_str_radix(&s[i..i + 2], 16)
-            .map_err(|_| Error::HexInvalidChar)?;
+        let b = u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| Error::HexInvalidChar)?;
         out.push(b);
     }
     Ok(out)
@@ -308,7 +311,11 @@ pub fn encode_hex_lower(bytes: &[u8]) -> String {
 
 /// Validate that a string is ASCII-only (for DID/KID fields).
 pub fn validate_ascii(s: &str) -> Result<()> {
-    if s.is_ascii() { Ok(()) } else { Err(Error::NotASCII) }
+    if s.is_ascii() {
+        Ok(())
+    } else {
+        Err(Error::NotASCII)
+    }
 }
 
 /// Validate that a string is NFC-normalized and has no BOM.
@@ -366,6 +373,14 @@ fn encode_varint32(buf: &mut Vec<u8>, mut value: u32) {
     }
 }
 
+// --- Fuzz-only exposure (feature: fuzz_expose) ---
+#[cfg(feature = "fuzz_expose")]
+pub fn _fuzz_decode_varint32(bytes: &[u8]) -> Result<u32> {
+    let mut slice = bytes;
+    // decode_varint32 takes a `&mut &[u8]`
+    decode_varint32(&mut slice)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,7 +415,10 @@ mod tests {
 
     #[test]
     fn hex_reject_uppercase() {
-        assert_eq!(parse_hex_lower("DEADBEEF").unwrap_err(), Error::HexUppercase);
+        assert_eq!(
+            parse_hex_lower("DEADBEEF").unwrap_err(),
+            Error::HexUppercase
+        );
     }
 
     #[test]
@@ -493,20 +511,14 @@ mod tests {
 
     #[test]
     fn validate_nfc_reject_bom() {
-        assert_eq!(validate_nfc("\u{FEFF}hello").unwrap_err(), Error::BOMPresent);
+        assert_eq!(
+            validate_nfc("\u{FEFF}hello").unwrap_err(),
+            Error::BOMPresent
+        );
     }
 
     #[test]
     fn validate_nfc_reject_nfd() {
         assert_eq!(validate_nfc("e\u{0301}").unwrap_err(), Error::NotNFC);
     }
-}
-
-// --- Fuzz-only exposure (feature: fuzz_expose) ---
-#[cfg(feature = "fuzz_expose")]
-pub fn _fuzz_decode_varint32(bytes: &[u8]) -> Result<u32> {
-    use std::io::Read;
-    let mut slice = bytes;
-    // decode_varint32 takes &mut R: Read
-    decode_varint32(&mut slice)
 }

@@ -1,7 +1,6 @@
-
-use serde::{Serialize, Deserialize};
-use ed25519_dalek::{Signer, Verifier, SigningKey, VerifyingKey, Signature};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use nrf1::Value;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
@@ -47,69 +46,69 @@ pub struct ChainInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Receipt {
     // --- identity ---
-    pub v: String,                              // "receipt-v1"
-    pub receipt_cid: String,                    // b3:<hex> over NRF(without sig)
+    pub v: String,           // "receipt-v1"
+    pub receipt_cid: String, // b3:<hex> over NRF(without sig)
 
     // --- time ---
-    pub t: i64,                                 // unix nanos
+    pub t: i64, // unix nanos
 
     // --- parties ---
-    pub issuer_did: String,                     // did:method:... (who signed)
+    pub issuer_did: String, // did:method:... (who signed)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub subject_did: Option<String>,            // did of the subject party
+    pub subject_did: Option<String>, // did of the subject party
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kid: Option<String>,                    // key-id for rotation
+    pub kid: Option<String>, // key-id for rotation
 
     // --- act (the 3 basis vectors) ---
-    pub act: String,                            // ATTEST | EVALUATE | TRANSACT
-    pub subject: String,                        // CID of what's being acted on
+    pub act: String,     // ATTEST | EVALUATE | TRANSACT
+    pub subject: String, // CID of what's being acted on
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision: Option<String>,               // ALLOW | DENY | REQUIRE | GHOST
+    pub decision: Option<String>, // ALLOW | DENY | REQUIRE | GHOST
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub effects: Option<Value>,                 // Map of effects; MUST be null/None for GHOST
+    pub effects: Option<Value>, // Map of effects; MUST be null/None for GHOST
 
     // --- payload ---
-    pub body: Value,                            // canonical NRF value
-    pub body_cid: String,                       // b3:<hex> of encode(body)
+    pub body: Value,      // canonical NRF value
+    pub body_cid: String, // b3:<hex> of encode(body)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub inputs_cid: Option<String>,             // b3:<hex> of input context
+    pub inputs_cid: Option<String>, // b3:<hex> of input context
 
     // --- policy ---
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<String>,                 // e.g. "pack-compliance/eu-ai-act@1"
+    pub policy: Option<String>, // e.g. "pack-compliance/eu-ai-act@1"
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning_cid: Option<String>,          // b3:<hex> of ReasoningBit
+    pub reasoning_cid: Option<String>, // b3:<hex> of ReasoningBit
 
     // --- permit (accountability) ---
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub permit_cid: Option<String>,             // b3:<hex> of the Permit that authorized this
+    pub permit_cid: Option<String>, // b3:<hex> of the Permit that authorized this
 
     // --- pipeline (free composition) ---
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pipeline_prev: Vec<String>,             // CIDs of prior act receipts in this pipeline
+    pub pipeline_prev: Vec<String>, // CIDs of prior act receipts in this pipeline
 
     // --- runtime ---
     pub rt: RuntimeInfo,
 
     // --- chain ---
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub prev: Option<String>,                   // previous receipt CID (linear chain)
+    pub prev: Option<String>, // previous receipt CID (linear chain)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain: Option<ChainInfo>,               // skip-list enrichment
+    pub chain: Option<ChainInfo>, // skip-list enrichment
 
     // --- ghost (WBE enrichment) ---
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ghost: Option<GhostInfo>,
 
     // --- entropy ---
-    pub nonce: Vec<u8>,                         // 16 bytes
+    pub nonce: Vec<u8>, // 16 bytes
 
     // --- location ---
-    pub url: String,                            // rich URL: base#cid=...&did=...&act=...
+    pub url: String, // rich URL: base#cid=...&did=...&act=...
 
     // --- signature (omitted from NRF hash) ---
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sig: Option<Vec<u8>>,                   // Ed25519(BLAKE3(NRF(without sig)))
+    pub sig: Option<Vec<u8>>, // Ed25519(BLAKE3(NRF(without sig)))
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +119,9 @@ pub fn rich_url(base: &str, cid: &str, did: &str, act: &str) -> String {
     format!(
         "{}#cid={}&did={}&act={}",
         base.trim_end_matches('/'),
-        cid, did, act
+        cid,
+        did,
+        act
     )
 }
 
@@ -128,16 +129,29 @@ pub fn rich_url(base: &str, cid: &str, did: &str, act: &str) -> String {
 // Link hash (chain integrity)
 // ---------------------------------------------------------------------------
 
-pub fn link_hash(cid: &str, body_cid: &str, prev: Option<&str>, skips: &[Option<String>]) -> String {
+pub fn link_hash(
+    cid: &str,
+    body_cid: &str,
+    prev: Option<&str>,
+    skips: &[Option<String>],
+) -> String {
     use blake3::Hasher;
     let mut h = Hasher::new();
     h.update(cid.as_bytes());
     h.update(body_cid.as_bytes());
-    if let Some(p) = prev { h.update(p.as_bytes()); } else { h.update(b""); }
+    if let Some(p) = prev {
+        h.update(p.as_bytes());
+    } else {
+        h.update(b"");
+    }
     for s in skips {
         match s {
-            Some(x) => { h.update(x.as_bytes()); },
-            None => { h.update(b"\x00"); },
+            Some(x) => {
+                h.update(x.as_bytes());
+            }
+            None => {
+                h.update(b"\x00");
+            }
         }
     }
     format!("b3:{}", h.finalize().to_hex())
@@ -164,30 +178,48 @@ impl Receipt {
 
         // parties
         m.insert("issuer_did".into(), String(self.issuer_did.clone()));
-        if let Some(sd) = &self.subject_did { m.insert("subject_did".into(), String(sd.clone())); }
-        if let Some(k) = &self.kid { m.insert("kid".into(), String(k.clone())); }
+        if let Some(sd) = &self.subject_did {
+            m.insert("subject_did".into(), String(sd.clone()));
+        }
+        if let Some(k) = &self.kid {
+            m.insert("kid".into(), String(k.clone()));
+        }
 
         // act
         m.insert("act".into(), String(self.act.clone()));
         m.insert("subject".into(), String(self.subject.clone()));
-        if let Some(d) = &self.decision { m.insert("decision".into(), String(d.clone())); }
-        if let Some(e) = &self.effects { m.insert("effects".into(), e.clone()); }
+        if let Some(d) = &self.decision {
+            m.insert("decision".into(), String(d.clone()));
+        }
+        if let Some(e) = &self.effects {
+            m.insert("effects".into(), e.clone());
+        }
 
         // payload
         m.insert("body".into(), self.body.clone());
         m.insert("body_cid".into(), String(self.body_cid.clone()));
-        if let Some(ic) = &self.inputs_cid { m.insert("inputs_cid".into(), String(ic.clone())); }
+        if let Some(ic) = &self.inputs_cid {
+            m.insert("inputs_cid".into(), String(ic.clone()));
+        }
 
         // policy
-        if let Some(p) = &self.policy { m.insert("policy".into(), String(p.clone())); }
-        if let Some(rc) = &self.reasoning_cid { m.insert("reasoning_cid".into(), String(rc.clone())); }
+        if let Some(p) = &self.policy {
+            m.insert("policy".into(), String(p.clone()));
+        }
+        if let Some(rc) = &self.reasoning_cid {
+            m.insert("reasoning_cid".into(), String(rc.clone()));
+        }
 
         // permit
-        if let Some(pc) = &self.permit_cid { m.insert("permit_cid".into(), String(pc.clone())); }
+        if let Some(pc) = &self.permit_cid {
+            m.insert("permit_cid".into(), String(pc.clone()));
+        }
 
         // pipeline
         if !self.pipeline_prev.is_empty() {
-            let arr: Vec<Value> = self.pipeline_prev.iter()
+            let arr: Vec<Value> = self
+                .pipeline_prev
+                .iter()
                 .map(|c| String(c.clone()))
                 .collect();
             m.insert("pipeline_prev".into(), Array(arr));
@@ -195,26 +227,34 @@ impl Receipt {
 
         // runtime
         let mut rt = BTreeMap::new();
-        rt.insert("binary_sha256".into(), String(self.rt.binary_sha256.clone()));
+        rt.insert(
+            "binary_sha256".into(),
+            String(self.rt.binary_sha256.clone()),
+        );
         if !self.rt.certs.is_empty() {
-            let certs: Vec<Value> = self.rt.certs.iter()
-                .map(|c| Bytes(c.clone()))
-                .collect();
+            let certs: Vec<Value> = self.rt.certs.iter().map(|c| Bytes(c.clone())).collect();
             rt.insert("certs".into(), Array(certs));
         }
         if !self.rt.env.is_empty() {
-            let env_map: BTreeMap<std::string::String, Value> = self.rt.env.iter()
+            let env_map: BTreeMap<std::string::String, Value> = self
+                .rt
+                .env
+                .iter()
                 .map(|(k, v)| (k.clone(), String(v.clone())))
                 .collect();
             rt.insert("env".into(), Map(env_map));
         }
-        if let Some(h) = &self.rt.hal_ref { rt.insert("hal_ref".into(), String(h.clone())); }
+        if let Some(h) = &self.rt.hal_ref {
+            rt.insert("hal_ref".into(), String(h.clone()));
+        }
         rt.insert("name".into(), String(self.rt.name.clone()));
         rt.insert("version".into(), String(self.rt.version.clone()));
         m.insert("rt".into(), Map(rt));
 
         // chain
-        if let Some(p) = &self.prev { m.insert("prev".into(), String(p.clone())); }
+        if let Some(p) = &self.prev {
+            m.insert("prev".into(), String(p.clone()));
+        }
 
         // ghost (as sub-map)
         if let Some(g) = &self.ghost {

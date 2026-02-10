@@ -9,6 +9,7 @@ use crate::id::compute_id;
 use crate::types::{Capsule, DOMAIN};
 use nrf_core::Value;
 use std::collections::BTreeMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,24 @@ pub enum SealError {
     BadSignature,
     #[error("Err.Seal.IdMismatch: capsule.id does not match computed ID")]
     IdMismatch,
+    #[error("Err.Hdr.Expired: capsule expired at {exp}, now={now}")]
+    Expired { exp: i64, now: i64 },
+}
+
+/// Options for capsule verification.
+#[derive(Default)]
+pub struct VerifyOpts {
+    /// Allowed clock skew in nanoseconds (default: 0).
+    pub allowed_skew_ns: i64,
+}
+
+/// Current time as epoch-nanoseconds (i64).
+pub fn now_nanos_i64() -> i64 {
+    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let nanos = (d.as_secs() as u128)
+        .saturating_mul(1_000_000_000)
+        .saturating_add(d.subsec_nanos() as u128);
+    i64::try_from(nanos).unwrap_or(i64::MAX)
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +54,10 @@ pub enum SealError {
 
 /// Sign a capsule: compute its ID, build the signing payload, and produce
 /// an Ed25519 signature. Mutates `c.id` and `c.seal.sig` in place.
+#[cfg_attr(
+    feature = "obs",
+    tracing::instrument(level = "debug", skip_all, fields(src = %c.hdr.src, act = %c.hdr.act))
+)]
 pub fn sign(c: &mut Capsule, sk: &ed25519_dalek::SigningKey) {
     // 1. Compute stable ID
     c.id = compute_id(c);
@@ -55,6 +78,19 @@ pub fn sign(c: &mut Capsule, sk: &ed25519_dalek::SigningKey) {
 ///   4. id matches computed ID
 ///   5. Ed25519 signature valid
 pub fn verify(c: &Capsule, pk: &ed25519_dalek::VerifyingKey) -> Result<(), SealError> {
+    verify_with_opts(c, pk, &VerifyOpts::default())
+}
+
+/// Verify with configurable options (clock skew, etc.).
+#[cfg_attr(
+    feature = "obs",
+    tracing::instrument(level = "debug", skip_all, fields(src = %c.hdr.src, act = %c.hdr.act))
+)]
+pub fn verify_with_opts(
+    c: &Capsule,
+    pk: &ed25519_dalek::VerifyingKey,
+    opts: &VerifyOpts,
+) -> Result<(), SealError> {
     // Check domain
     if c.domain != DOMAIN {
         return Err(SealError::BadDomain);
@@ -73,6 +109,14 @@ pub fn verify(c: &Capsule, pk: &ed25519_dalek::VerifyingKey) -> Result<(), SealE
         }
     }
 
+    // Check expiration
+    if let Some(exp) = c.hdr.exp {
+        let now = now_nanos_i64();
+        if now.saturating_sub(opts.allowed_skew_ns) > exp {
+            return Err(SealError::Expired { exp, now });
+        }
+    }
+
     // Check ID stability
     let computed = compute_id(c);
     if c.id != computed {
@@ -83,7 +127,8 @@ pub fn verify(c: &Capsule, pk: &ed25519_dalek::VerifyingKey) -> Result<(), SealE
     let payload_hash = signing_hash(c);
     let sig = ed25519_dalek::Signature::from_bytes(&c.seal.sig);
     use ed25519_dalek::Verifier;
-    pk.verify(&payload_hash, &sig).map_err(|_| SealError::BadSignature)
+    pk.verify(&payload_hash, &sig)
+        .map_err(|_| SealError::BadSignature)
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +156,9 @@ fn header_value(h: &crate::types::Header) -> Value {
     if let Some(scope) = &h.scope {
         m.insert("scope".into(), Value::String(scope.clone()));
     }
+    if let Some(exp) = h.exp {
+        m.insert("exp".into(), Value::Int(exp));
+    }
     m.insert("src".into(), Value::String(h.src.clone()));
     m.insert("ts".into(), Value::Int(h.ts));
     Value::Map(m)
@@ -122,7 +170,12 @@ fn envelope_value(e: &crate::types::Envelope) -> Value {
     if !e.evidence.is_empty() {
         m.insert(
             "evidence".into(),
-            Value::Array(e.evidence.iter().map(|s| Value::String(s.clone())).collect()),
+            Value::Array(
+                e.evidence
+                    .iter()
+                    .map(|s| Value::String(s.clone()))
+                    .collect(),
+            ),
         );
     }
     if let Some(links) = &e.links {
@@ -142,14 +195,19 @@ fn json_to_nrf(j: &serde_json::Value) -> Value {
         serde_json::Value::Null => Value::Null,
         serde_json::Value::Bool(b) => Value::Bool(*b),
         serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() { Value::Int(i) }
-            else { Value::String(n.to_string()) }
+            if let Some(i) = n.as_i64() {
+                Value::Int(i)
+            } else {
+                Value::String(n.to_string())
+            }
         }
         serde_json::Value::String(s) => Value::String(s.clone()),
         serde_json::Value::Array(a) => Value::Array(a.iter().map(json_to_nrf).collect()),
         serde_json::Value::Object(o) => {
             let mut m = BTreeMap::new();
-            for (k, v) in o { m.insert(k.clone(), json_to_nrf(v)); }
+            for (k, v) in o {
+                m.insert(k.clone(), json_to_nrf(v));
+            }
             Value::Map(m)
         }
     }
@@ -181,6 +239,7 @@ mod tests {
                 ts: 1700000000000,
                 act: "ATTEST".into(),
                 scope: None,
+                exp: None,
             },
             env: Envelope {
                 body: serde_json::json!({"name": "test", "value": 42}),
@@ -281,5 +340,49 @@ mod tests {
         let mut c = make_capsule();
         sign(&mut c, &sk);
         assert_eq!(verify(&c, &vk2).unwrap_err(), SealError::BadSignature);
+    }
+
+    #[test]
+    fn expired_capsule_rejected() {
+        let (sk, vk) = keypair();
+        let mut c = make_capsule();
+        c.hdr.exp = Some(1); // expired in 1970
+        sign(&mut c, &sk);
+        assert!(matches!(
+            verify(&c, &vk).unwrap_err(),
+            SealError::Expired { .. }
+        ));
+    }
+
+    #[test]
+    fn future_exp_accepted() {
+        let (sk, vk) = keypair();
+        let mut c = make_capsule();
+        c.hdr.exp = Some(i64::MAX); // far future
+        sign(&mut c, &sk);
+        assert!(verify(&c, &vk).is_ok());
+    }
+
+    #[test]
+    fn expired_with_skew_accepted() {
+        let (sk, vk) = keypair();
+        let mut c = make_capsule();
+        let now = now_nanos_i64();
+        c.hdr.exp = Some(now - 1_000_000_000); // 1s ago
+        sign(&mut c, &sk);
+        assert!(verify(&c, &vk).is_err());
+        let opts = VerifyOpts {
+            allowed_skew_ns: 2_000_000_000,
+        };
+        assert!(verify_with_opts(&c, &vk, &opts).is_ok());
+    }
+
+    #[test]
+    fn no_exp_always_ok() {
+        let (sk, vk) = keypair();
+        let mut c = make_capsule();
+        c.hdr.exp = None;
+        sign(&mut c, &sk);
+        assert!(verify(&c, &vk).is_ok());
     }
 }

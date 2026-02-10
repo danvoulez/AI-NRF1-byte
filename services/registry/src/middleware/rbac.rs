@@ -19,7 +19,11 @@ pub fn require_any(ctx: &AuthCtx, allowed: &[&str]) -> bool {
 
 /// Extract user_id from x-user-id header.
 pub fn parse_user_id(headers: &axum::http::HeaderMap) -> Result<Uuid, axum::http::StatusCode> {
-    let hdr = headers.get("x-user-id").ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
-    let s = hdr.to_str().map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
+    let hdr = headers
+        .get("x-user-id")
+        .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+    let s = hdr
+        .to_str()
+        .map_err(|_| axum::http::StatusCode::UNAUTHORIZED)?;
     Uuid::parse_str(s).map_err(|_| axum::http::StatusCode::UNAUTHORIZED)
 }

@@ -1,4 +1,3 @@
-
 use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::pkcs8::DecodePrivateKey;
@@ -23,7 +22,11 @@ pub fn sign_value(signer: &dyn Signer, value: &nrf_core::Value) -> Result<Vec<u8
 }
 
 /// Convenience: verify a signature over a `nrf_core::Value`.
-pub fn verify_value(vk: &ed25519_dalek::VerifyingKey, value: &nrf_core::Value, sig_bytes: &[u8]) -> bool {
+pub fn verify_value(
+    vk: &ed25519_dalek::VerifyingKey,
+    value: &nrf_core::Value,
+    sig_bytes: &[u8],
+) -> bool {
     let nrf_bytes = nrf_core::encode(value);
     let hash = blake3::hash(&nrf_bytes);
     if let Ok(sig) = ed25519_dalek::Signature::from_slice(sig_bytes) {
@@ -66,7 +69,9 @@ impl LocalSigner {
     }
 
     pub fn from_bytes(bytes: &[u8; 32]) -> Self {
-        Self { key: ed25519_dalek::SigningKey::from_bytes(bytes) }
+        Self {
+            key: ed25519_dalek::SigningKey::from_bytes(bytes),
+        }
     }
 
     pub fn generate() -> Self {
@@ -118,7 +123,9 @@ impl Signer for HttpSigner {
         }
         let sr: SignResponse = resp.json()?;
         let sig = general_purpose::STANDARD.decode(sr.sig_b64)?;
-        if sig.len() != 64 { return Err(anyhow!("expected 64-byte ed25519 signature")); }
+        if sig.len() != 64 {
+            return Err(anyhow!("expected 64-byte ed25519 signature"));
+        }
         Ok(sig)
     }
 }

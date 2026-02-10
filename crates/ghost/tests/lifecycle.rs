@@ -1,5 +1,5 @@
-use ghost::*;
 use ed25519_dalek::SigningKey;
+use ghost::*;
 
 fn make_test_ghost() -> Ghost {
     let wbe = Wbe {
@@ -8,7 +8,11 @@ fn make_test_ghost() -> Ghost {
         when: 1_700_000_000_000_000_000,
         intent: "EVALUATE".into(),
     };
-    Ghost::new_pending(wbe, vec![0u8; 16], "https://example.com/ghosts/test.json".into())
+    Ghost::new_pending(
+        wbe,
+        vec![0u8; 16],
+        "https://example.com/ghosts/test.json".into(),
+    )
 }
 
 #[test]

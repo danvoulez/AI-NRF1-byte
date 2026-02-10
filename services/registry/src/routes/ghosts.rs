@@ -1,4 +1,8 @@
-use axum::{routing::post, Router, extract::{State, Path}, Json};
+use axum::{
+    extract::{Path, State},
+    routing::post,
+    Json, Router,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -51,12 +55,17 @@ async fn create_ghost(
 ) -> Result<Json<GhostResp>, (axum::http::StatusCode, String)> {
     use crate::middleware::rbac;
 
-    let user_id = rbac::parse_user_id(&headers)
-        .map_err(|s| (s, "missing or invalid x-user-id".into()))?;
+    let user_id =
+        rbac::parse_user_id(&headers).map_err(|s| (s, "missing or invalid x-user-id".into()))?;
 
     let id = Uuid::now_v7();
-    let base = format!("{}/{}/{}/ghosts/{}.json",
-        state.cfg.public_base.trim_end_matches('/'), app, tenant, id);
+    let base = format!(
+        "{}/{}/{}/ghosts/{}.json",
+        state.cfg.public_base.trim_end_matches('/'),
+        app,
+        tenant,
+        id
+    );
     let url = format!("{}#cid={}&did={}", base, req.cid, req.did);
 
     // --- Persist to ledger ---
@@ -64,17 +73,27 @@ async fn create_ghost(
         use ubl_storage::ledger::{LedgerEntry, LedgerEvent};
         let entry = LedgerEntry::now(
             LedgerEvent::GhostCreated,
-            &app, &tenant,
-            Some(user_id), vec![],
-            id, &req.cid, &req.did,
-            None, req.wbe.clone(),
+            &app,
+            &tenant,
+            Some(user_id),
+            vec![],
+            id,
+            &req.cid,
+            &req.did,
+            None,
+            req.wbe.clone(),
         );
         if let Err(e) = state.ledger.append(&entry).await {
             tracing::warn!("ledger append (ghost create) failed: {}", e);
         }
     }
 
-    Ok(Json(GhostResp { id, url, cid: req.cid, status: "pending".into() }))
+    Ok(Json(GhostResp {
+        id,
+        url,
+        cid: req.cid,
+        status: "pending".into(),
+    }))
 }
 
 async fn promote_ghost(
@@ -86,16 +105,23 @@ async fn promote_ghost(
         use ubl_storage::ledger::{LedgerEntry, LedgerEvent};
         let entry = LedgerEntry::now(
             LedgerEvent::GhostPromoted,
-            &app, &tenant,
-            None, vec![],
-            id, &req.receipt_cid, "",
-            None, serde_json::json!({"receipt_cid": req.receipt_cid}),
+            &app,
+            &tenant,
+            None,
+            vec![],
+            id,
+            &req.receipt_cid,
+            "",
+            None,
+            serde_json::json!({"receipt_cid": req.receipt_cid}),
         );
         if let Err(e) = state.ledger.append(&entry).await {
             tracing::warn!("ledger append (ghost promote) failed: {}", e);
         }
     }
-    Ok(Json(serde_json::json!({"ok": true, "ghost_id": id, "receipt_cid": req.receipt_cid})))
+    Ok(Json(
+        serde_json::json!({"ok": true, "ghost_id": id, "receipt_cid": req.receipt_cid}),
+    ))
 }
 
 async fn expire_ghost(
@@ -107,14 +133,21 @@ async fn expire_ghost(
         use ubl_storage::ledger::{LedgerEntry, LedgerEvent};
         let entry = LedgerEntry::now(
             LedgerEvent::GhostExpired,
-            &app, &tenant,
-            None, vec![],
-            id, "", "",
-            None, serde_json::json!({"cause": req.cause}),
+            &app,
+            &tenant,
+            None,
+            vec![],
+            id,
+            "",
+            "",
+            None,
+            serde_json::json!({"cause": req.cause}),
         );
         if let Err(e) = state.ledger.append(&entry).await {
             tracing::warn!("ledger append (ghost expire) failed: {}", e);
         }
     }
-    Ok(Json(serde_json::json!({"ok": true, "ghost_id": id, "cause": req.cause})))
+    Ok(Json(
+        serde_json::json!({"ok": true, "ghost_id": id, "cause": req.cause}),
+    ))
 }

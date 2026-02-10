@@ -26,6 +26,7 @@ fn make_capsule(act: &str, body: serde_json::Value) -> Capsule {
             ts: 1700000000000,
             act: act.into(),
             scope: None,
+            exp: None,
         },
         env: Envelope {
             body,
@@ -107,12 +108,14 @@ fn id_stable_add_remove_receipts() {
     let mut prev = [0u8; 32];
     for i in 0..3 {
         let r = add_hop(
-            c.id, prev,
+            c.id,
+            prev,
             "relay",
             &format!("did:ubl:relay{i}#key-1"),
             1700000000000 + i as i64,
             &relay_sk,
-        ).unwrap();
+        )
+        .unwrap();
         prev = r.id;
         c.receipts.push(r);
     }
@@ -138,12 +141,14 @@ fn valid_chain_passes() {
     for i in 0..5 {
         let (sk, vk) = keypair();
         let r = add_hop(
-            c.id, prev,
+            c.id,
+            prev,
             "relay",
             &format!("did:ubl:node{i}#key-1"),
             1700000000000 + i as i64,
             &sk,
-        ).unwrap();
+        )
+        .unwrap();
         prev = r.id;
         c.receipts.push(r);
         keys.push((format!("did:ubl:node{i}#key-1"), vk));
@@ -166,12 +171,14 @@ fn reorder_chain_fails() {
     for i in 0..3 {
         let (sk, vk) = keypair();
         let r = add_hop(
-            c.id, prev,
+            c.id,
+            prev,
             "relay",
             &format!("did:ubl:node{i}#key-1"),
             1700000000000 + i as i64,
             &sk,
-        ).unwrap();
+        )
+        .unwrap();
         prev = r.id;
         c.receipts.push(r);
         keys.push((format!("did:ubl:node{i}#key-1"), vk));
@@ -195,12 +202,14 @@ fn remove_middle_hop_fails() {
     for i in 0..3 {
         let (sk, vk) = keypair();
         let r = add_hop(
-            c.id, prev,
+            c.id,
+            prev,
             "relay",
             &format!("did:ubl:node{i}#key-1"),
             1700000000000 + i as i64,
             &sk,
-        ).unwrap();
+        )
+        .unwrap();
         prev = r.id;
         c.receipts.push(r);
         keys.push((format!("did:ubl:node{i}#key-1"), vk));
@@ -244,6 +253,56 @@ fn pipeline_attest_then_evaluate() {
     );
     // Different capsules have different IDs
     assert_ne!(attest.id, evaluate.id);
+}
+
+// =========================================================================
+// 4b. End-to-end capsule flow
+// =========================================================================
+
+#[test]
+fn end_to_end_capsule_flow() {
+    let (author_sk, author_vk) = keypair();
+    let (relay_sk, relay_vk) = keypair();
+    let (exec_sk, exec_vk) = keypair();
+
+    let mut cap = make_capsule("ATTEST", serde_json::json!({"doc": "policy-123"}));
+    cap.hdr.exp = Some(seal::now_nanos_i64().saturating_add(60_000_000_000)); // +60s
+
+    seal::sign(&mut cap, &author_sk);
+    let id_before = cap.id;
+    assert!(seal::verify(&cap, &author_vk).is_ok());
+
+    // Add 2 receipt hops (relay → exec)
+    let relay_node = "did:ubl:relay#key-1";
+    let exec_node = "did:ubl:exec#key-1";
+    let mut prev = [0u8; 32];
+
+    let r1 = add_hop(cap.id, prev, "relay", relay_node, cap.hdr.ts + 1, &relay_sk).unwrap();
+    prev = r1.id;
+    cap.receipts.push(r1);
+
+    let r2 = add_hop(cap.id, prev, "exec", exec_node, cap.hdr.ts + 2, &exec_sk).unwrap();
+    cap.receipts.push(r2);
+
+    let resolve = |node: &str| -> Option<ed25519_dalek::VerifyingKey> {
+        if node == relay_node {
+            Some(relay_vk)
+        } else if node == exec_node {
+            Some(exec_vk)
+        } else {
+            None
+        }
+    };
+    assert!(verify_chain(&cap.id, &cap.receipts, &resolve).is_ok());
+
+    // ID must be stable regardless of receipts
+    assert_eq!(ubl_capsule::compute_id(&cap), id_before);
+
+    // JSON serialize/deserialize roundtrip keeps seal valid
+    let json = serde_json::to_string(&cap).unwrap();
+    let cap2: Capsule = serde_json::from_str(&json).unwrap();
+    assert_eq!(cap2.id, cap.id);
+    assert!(seal::verify(&cap2, &author_vk).is_ok());
 }
 
 // =========================================================================

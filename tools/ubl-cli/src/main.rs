@@ -123,9 +123,13 @@ fn run(cli: Cli) -> Result<()> {
             CapAction::Sign { input, sk, output } => cmd_sign(&input, &sk, &output),
             CapAction::Verify { input, pk } => cmd_verify(&input, &pk),
             CapAction::Receipt { action } => match action {
-                ReceiptAction::Add { input, kind, node, sk, output } => {
-                    cmd_receipt_add(&input, &kind, &node, &sk, &output)
-                }
+                ReceiptAction::Add {
+                    input,
+                    kind,
+                    node,
+                    sk,
+                    output,
+                } => cmd_receipt_add(&input, &kind, &node, &sk, &output),
             },
         },
         Commands::Keygen { output } => cmd_keygen(&output),
@@ -138,18 +142,15 @@ fn run(cli: Cli) -> Result<()> {
 
 fn cmd_from_json(input: &str, output: &str) -> Result<()> {
     let json_str = read_input(input)?;
-    let j: serde_json::Value = serde_json::from_str(&json_str)
-        .context("Err.Parse.InvalidJSON")?;
-    let nrf_bytes = ubl_json_view::json_to_nrf_bytes(&j)
-        .map_err(|e| anyhow!("Err.Canon.{e}"))?;
+    let j: serde_json::Value = serde_json::from_str(&json_str).context("Err.Parse.InvalidJSON")?;
+    let nrf_bytes = ubl_json_view::json_to_nrf_bytes(&j).map_err(|e| anyhow!("Err.Canon.{e}"))?;
     write_output(output, &nrf_bytes)?;
     Ok(())
 }
 
 fn cmd_to_json(input: &str, output: &str) -> Result<()> {
     let nrf_bytes = read_input_bytes(input)?;
-    let j = ubl_json_view::nrf_bytes_to_json(&nrf_bytes)
-        .map_err(|e| anyhow!("Err.Decode.{e}"))?;
+    let j = ubl_json_view::nrf_bytes_to_json(&nrf_bytes).map_err(|e| anyhow!("Err.Decode.{e}"))?;
     let json_str = serde_json::to_string_pretty(&j)?;
     write_output(output, json_str.as_bytes())?;
     Ok(())
@@ -162,10 +163,9 @@ fn cmd_hash(input: &str) -> Result<()> {
         data
     } else {
         let json_str = std::str::from_utf8(&data).context("Err.Parse.InvalidUTF8")?;
-        let j: serde_json::Value = serde_json::from_str(json_str)
-            .context("Err.Parse.InvalidJSON")?;
-        ubl_json_view::json_to_nrf_bytes(&j)
-            .map_err(|e| anyhow!("Err.Canon.{e}"))?
+        let j: serde_json::Value =
+            serde_json::from_str(json_str).context("Err.Parse.InvalidJSON")?;
+        ubl_json_view::json_to_nrf_bytes(&j).map_err(|e| anyhow!("Err.Canon.{e}"))?
     };
     let hash = blake3::hash(&nrf_bytes);
     println!("b3:{}", hash.to_hex());
@@ -174,8 +174,8 @@ fn cmd_hash(input: &str) -> Result<()> {
 
 fn cmd_sign(input: &str, sk_path: &PathBuf, output: &str) -> Result<()> {
     let json_str = read_input(input)?;
-    let mut capsule: ubl_capsule::Capsule = serde_json::from_str(&json_str)
-        .context("Err.Parse.InvalidCapsuleJSON")?;
+    let mut capsule: ubl_capsule::Capsule =
+        serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
     let sk = load_signing_key(sk_path)?;
     ubl_capsule::seal::sign(&mut capsule, &sk);
     let out = serde_json::to_string_pretty(&capsule)?;
@@ -185,11 +185,10 @@ fn cmd_sign(input: &str, sk_path: &PathBuf, output: &str) -> Result<()> {
 
 fn cmd_verify(input: &str, pk_path: &PathBuf) -> Result<()> {
     let json_str = read_input(input)?;
-    let capsule: ubl_capsule::Capsule = serde_json::from_str(&json_str)
-        .context("Err.Parse.InvalidCapsuleJSON")?;
+    let capsule: ubl_capsule::Capsule =
+        serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
     let pk = load_verifying_key(pk_path)?;
-    ubl_capsule::seal::verify(&capsule, &pk)
-        .map_err(|e| anyhow!("{e}"))?;
+    ubl_capsule::seal::verify(&capsule, &pk).map_err(|e| anyhow!("{e}"))?;
     println!("OK: seal verified");
     Ok(())
 }
@@ -202,8 +201,8 @@ fn cmd_receipt_add(
     output: &str,
 ) -> Result<()> {
     let json_str = read_input(input)?;
-    let mut capsule: ubl_capsule::Capsule = serde_json::from_str(&json_str)
-        .context("Err.Parse.InvalidCapsuleJSON")?;
+    let mut capsule: ubl_capsule::Capsule =
+        serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
 
     let sk = load_signing_key(sk_path)?;
 
@@ -276,9 +275,9 @@ fn write_output(path: &str, data: &[u8]) -> Result<()> {
 fn load_signing_key(path: &PathBuf) -> Result<ed25519_dalek::SigningKey> {
     let hex_str = std::fs::read_to_string(path)
         .with_context(|| format!("reading secret key from {}", path.display()))?;
-    let bytes = hex::decode(hex_str.trim())
-        .context("Err.Key.BadHex")?;
-    let arr: [u8; 32] = bytes.try_into()
+    let bytes = hex::decode(hex_str.trim()).context("Err.Key.BadHex")?;
+    let arr: [u8; 32] = bytes
+        .try_into()
         .map_err(|_| anyhow!("Err.Key.BadLength: expected 32 bytes (64 hex chars)"))?;
     Ok(ed25519_dalek::SigningKey::from_bytes(&arr))
 }
@@ -286,10 +285,9 @@ fn load_signing_key(path: &PathBuf) -> Result<ed25519_dalek::SigningKey> {
 fn load_verifying_key(path: &PathBuf) -> Result<ed25519_dalek::VerifyingKey> {
     let hex_str = std::fs::read_to_string(path)
         .with_context(|| format!("reading public key from {}", path.display()))?;
-    let bytes = hex::decode(hex_str.trim())
-        .context("Err.Key.BadHex")?;
-    let arr: [u8; 32] = bytes.try_into()
+    let bytes = hex::decode(hex_str.trim()).context("Err.Key.BadHex")?;
+    let arr: [u8; 32] = bytes
+        .try_into()
         .map_err(|_| anyhow!("Err.Key.BadLength: expected 32 bytes (64 hex chars)"))?;
-    ed25519_dalek::VerifyingKey::from_bytes(&arr)
-        .context("Err.Key.InvalidPublicKey")
+    ed25519_dalek::VerifyingKey::from_bytes(&arr).context("Err.Key.InvalidPublicKey")
 }

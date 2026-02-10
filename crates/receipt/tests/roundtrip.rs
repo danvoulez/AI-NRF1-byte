@@ -1,7 +1,7 @@
-use receipt::*;
-use nrf1::Value;
-use std::collections::BTreeMap;
 use ed25519_dalek::SigningKey;
+use nrf1::Value;
+use receipt::*;
+use std::collections::BTreeMap;
 
 fn make_test_receipt() -> Receipt {
     let body = Value::Map({

@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use ed25519_dalek::{Signer, Verifier, SigningKey, VerifyingKey, Signature};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use nrf1::Value;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
@@ -39,25 +39,25 @@ pub enum ExpireCause {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Wbe {
-    pub who: String,        // DID of the actor
-    pub what: String,       // description of the intended action
-    pub when: i64,          // unix nanos of intent
-    pub intent: String,     // structured intent (act type or free text)
+    pub who: String,    // DID of the actor
+    pub what: String,   // description of the intended action
+    pub when: i64,      // unix nanos of intent
+    pub intent: String, // structured intent (act type or free text)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Ghost {
-    pub v: String,                              // "ghost.v1"
-    pub ghost_cid: String,                      // b3:<hex> over NRF(without sig)
-    pub t: i64,                                 // unix nanos
-    pub status: GhostStatus,                    // pending | expired
-    pub wbe: Wbe,                               // write-before-execute record
+    pub v: String,           // "ghost.v1"
+    pub ghost_cid: String,   // b3:<hex> over NRF(without sig)
+    pub t: i64,              // unix nanos
+    pub status: GhostStatus, // pending | expired
+    pub wbe: Wbe,            // write-before-execute record
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cause: Option<ExpireCause>,             // only set when expired
-    pub nonce: Vec<u8>,                         // 16 bytes
-    pub url: String,                            // rich URL
+    pub cause: Option<ExpireCause>, // only set when expired
+    pub nonce: Vec<u8>,      // 16 bytes
+    pub url: String,         // rich URL
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sig: Option<Vec<u8>>,                   // Ed25519(BLAKE3(NRF(without sig)))
+    pub sig: Option<Vec<u8>>, // Ed25519(BLAKE3(NRF(without sig)))
 }
 
 // ---------------------------------------------------------------------------
@@ -66,8 +66,8 @@ pub struct Ghost {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GhostRef {
-    pub ghost_id: String,   // storage ID
-    pub ghost_cid: String,  // b3:<hex> — verifiable link
+    pub ghost_id: String,  // storage ID
+    pub ghost_cid: String, // b3:<hex> — verifiable link
 }
 
 // ---------------------------------------------------------------------------

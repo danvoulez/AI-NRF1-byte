@@ -88,7 +88,8 @@ pub fn verify_receipt(r: &Receipt, pk: &ed25519_dalek::VerifyingKey) -> Result<(
     // Verify signature
     let sig = ed25519_dalek::Signature::from_bytes(&r.sig);
     use ed25519_dalek::Verifier;
-    pk.verify(&r.id, &sig).map_err(|_| HopError::BadSignature(0))
+    pk.verify(&r.id, &sig)
+        .map_err(|_| HopError::BadSignature(0))
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +104,10 @@ pub fn verify_receipt(r: &Receipt, pk: &ed25519_dalek::VerifyingKey) -> Result<(
 ///   3. All `of` fields must equal `capsule_id`
 ///   4. All signatures must be valid (caller provides verifier fn)
 ///   5. No forks (no duplicate `prev` values)
+#[cfg_attr(
+    feature = "obs",
+    tracing::instrument(level = "debug", skip_all, fields(receipts_len = receipts.len()))
+)]
 pub fn verify_chain(
     capsule_id: &[u8; 32],
     receipts: &[Receipt],
@@ -142,7 +147,8 @@ pub fn verify_chain(
         let pk = resolve_pk(&r.node).ok_or(HopError::BadSignature(i))?;
         let sig = ed25519_dalek::Signature::from_bytes(&r.sig);
         use ed25519_dalek::Verifier;
-        pk.verify(&r.id, &sig).map_err(|_| HopError::BadSignature(i))?;
+        pk.verify(&r.id, &sig)
+            .map_err(|_| HopError::BadSignature(i))?;
 
         // Next hop's prev = this receipt's id
         expected_prev = r.id;
@@ -152,6 +158,10 @@ pub fn verify_chain(
 }
 
 /// Create a new receipt hop and sign it.
+#[cfg_attr(
+    feature = "obs",
+    tracing::instrument(level = "debug", skip_all, fields(kind = %kind, node = %node))
+)]
 pub fn add_hop(
     capsule_id: [u8; 32],
     prev: [u8; 32],
@@ -193,15 +203,25 @@ mod tests {
     fn build_chain(
         capsule_id: [u8; 32],
         n: usize,
-    ) -> (Vec<Receipt>, Vec<(ed25519_dalek::SigningKey, ed25519_dalek::VerifyingKey)>) {
+    ) -> (
+        Vec<Receipt>,
+        Vec<(ed25519_dalek::SigningKey, ed25519_dalek::VerifyingKey)>,
+    ) {
         let mut receipts = Vec::new();
         let mut keys = Vec::new();
         let mut prev = [0u8; 32];
         for i in 0..n {
             let (sk, vk) = keypair();
             let node = format!("did:ubl:node{i}#key-1");
-            let r = add_hop(capsule_id, prev, "relay", &node, 1700000000000 + i as i64, &sk)
-                .unwrap();
+            let r = add_hop(
+                capsule_id,
+                prev,
+                "relay",
+                &node,
+                1700000000000 + i as i64,
+                &sk,
+            )
+            .unwrap();
             prev = r.id;
             receipts.push(r);
             keys.push((sk, vk));

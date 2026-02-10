@@ -2,8 +2,8 @@
 
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
-use std::process::Command;
 use std::fs;
+use std::process::Command;
 
 fn write(tmp: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
     let p = tmp.join(name);

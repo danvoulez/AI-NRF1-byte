@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -35,14 +34,30 @@ pub struct UblJsonV1 {
 
 impl UblJsonV1 {
     pub fn validate(&self) -> Result<(), UblJsonError> {
-        if self.space.is_empty() { return Err(UblJsonError::Validation("space empty".into())); }
-        if self.version.is_empty() { return Err(UblJsonError::Validation("version empty".into())); }
-        if self.id.is_empty() { return Err(UblJsonError::Validation("id empty".into())); }
-        if self.app.is_empty() { return Err(UblJsonError::Validation("app empty".into())); }
-        if self.tenant.is_empty() { return Err(UblJsonError::Validation("tenant empty".into())); }
-        if self.subject.is_empty() { return Err(UblJsonError::Validation("subject empty".into())); }
-        if self.intent.is_empty() { return Err(UblJsonError::Validation("intent empty".into())); }
-        if self.claims.is_empty() { return Err(UblJsonError::Validation("claims empty".into())); }
+        if self.space.is_empty() {
+            return Err(UblJsonError::Validation("space empty".into()));
+        }
+        if self.version.is_empty() {
+            return Err(UblJsonError::Validation("version empty".into()));
+        }
+        if self.id.is_empty() {
+            return Err(UblJsonError::Validation("id empty".into()));
+        }
+        if self.app.is_empty() {
+            return Err(UblJsonError::Validation("app empty".into()));
+        }
+        if self.tenant.is_empty() {
+            return Err(UblJsonError::Validation("tenant empty".into()));
+        }
+        if self.subject.is_empty() {
+            return Err(UblJsonError::Validation("subject empty".into()));
+        }
+        if self.intent.is_empty() {
+            return Err(UblJsonError::Validation("intent empty".into()));
+        }
+        if self.claims.is_empty() {
+            return Err(UblJsonError::Validation("claims empty".into()));
+        }
         Ok(())
     }
 
@@ -58,14 +73,32 @@ impl UblJsonV1 {
         map.insert("tenant".into(), V::String(self.tenant.clone()));
         map.insert("subject".into(), V::String(self.subject.clone()));
         map.insert("intent".into(), V::String(self.intent.clone()));
-        if let Some(s) = &self.scope { map.insert("scope".into(), V::String(s.clone())); }
-        map.insert("claims".into(), V::Array(self.claims.iter().cloned().map(V::String).collect()));
+        if let Some(s) = &self.scope {
+            map.insert("scope".into(), V::String(s.clone()));
+        }
+        map.insert(
+            "claims".into(),
+            V::Array(self.claims.iter().cloned().map(V::String).collect()),
+        );
         // grounds/meta as JSON string blobs for now (can be refined)
         map.insert("grounds".into(), V::String(self.grounds.to_string()));
-        map.insert("rules_ref".into(), V::Array(self.rules_ref.iter().cloned().map(V::String).collect()));
-        if let Some(h) = &self.decision_hint { map.insert("decision_hint".into(), V::String(h.clone())); }
-        if let Some(c) = self.confidence { map.insert("confidence".into(), V::Int((c*1_000_000.0).round() as i64)); }
-        map.insert("evidence".into(), V::Array(self.evidence.iter().cloned().map(V::String).collect()));
+        map.insert(
+            "rules_ref".into(),
+            V::Array(self.rules_ref.iter().cloned().map(V::String).collect()),
+        );
+        if let Some(h) = &self.decision_hint {
+            map.insert("decision_hint".into(), V::String(h.clone()));
+        }
+        if let Some(c) = self.confidence {
+            map.insert(
+                "confidence".into(),
+                V::Int((c * 1_000_000.0).round() as i64),
+            );
+        }
+        map.insert(
+            "evidence".into(),
+            V::Array(self.evidence.iter().cloned().map(V::String).collect()),
+        );
         map.insert("meta".into(), V::String(self.meta.to_string()));
         V::Map(map)
     }

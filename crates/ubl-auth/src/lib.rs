@@ -107,11 +107,14 @@ where
                 tenant,
                 user_id: user,
                 did: Some(did),
-                roles: vec![],  // resolved downstream from DB, never from headers
+                roles: vec![], // resolved downstream from DB, never from headers
             }),
             Ok(None) => {
                 // No PoP headers at all — reject
-                Err((StatusCode::UNAUTHORIZED, "missing PoP headers (x-did, x-signature, x-pubkey)".into()))
+                Err((
+                    StatusCode::UNAUTHORIZED,
+                    "missing PoP headers (x-did, x-signature, x-pubkey)".into(),
+                ))
             }
             Err(e) => {
                 warn!("PoP error: {}", e);

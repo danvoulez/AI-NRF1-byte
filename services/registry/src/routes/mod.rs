@@ -1,2 +1,2 @@
-pub mod receipts;
 pub mod ghosts;
+pub mod receipts;

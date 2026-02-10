@@ -15,9 +15,9 @@
 // explaining WHAT went wrong and WHY it matters.
 // ==========================================================================
 
-use nrf_core::{Value, encode, decode, rho};
-use std::collections::BTreeMap;
 use ed25519_dalek::SigningKey;
+use nrf_core::{decode, encode, rho, Value};
+use std::collections::BTreeMap;
 
 // ==========================================================================
 // HELPERS
@@ -99,7 +99,11 @@ fn make_ghost() -> ghost::Ghost {
         when: 1_700_000_000_000_000_000,
         intent: "EVALUATE".into(),
     };
-    ghost::Ghost::new_pending(wbe, vec![0u8; 16], "https://example.com/ghosts/test.json".into())
+    ghost::Ghost::new_pending(
+        wbe,
+        vec![0u8; 16],
+        "https://example.com/ghosts/test.json".into(),
+    )
 }
 
 // ==========================================================================
@@ -113,9 +117,8 @@ fn art1_1_rho_nfc_normalization() {
     // ρ rule 1: strings must be NFC normalized
     let decomposed = "e\u{0301}"; // NFD: e + combining acute
     let v = Value::String(decomposed.to_string());
-    let norm = rho::normalize(&v).expect(
-        "ARTICLE I §1.1 VIOLATION: ρ must normalize NFD strings to NFC"
-    );
+    let norm =
+        rho::normalize(&v).expect("ARTICLE I §1.1 VIOLATION: ρ must normalize NFD strings to NFC");
     assert_eq!(
         norm,
         Value::String("\u{00E9}".to_string()),
@@ -149,7 +152,11 @@ fn art1_1_rho_map_strips_nulls() {
              Key 'b' with Null value should have been stripped. \
              Constitution says: absence ≠ null."
         );
-        assert_eq!(m.len(), 2, "ARTICLE I §1.1: map should have 2 keys after null removal");
+        assert_eq!(
+            m.len(),
+            2,
+            "ARTICLE I §1.1: map should have 2 keys after null removal"
+        );
     } else {
         panic!("ARTICLE I §1.1: ρ(Map) must return Map");
     }
@@ -162,7 +169,10 @@ fn art1_1_rho_nested_null_removal() {
     let outer = make_map(&[("inner", inner), ("z", Value::Null)]);
     let norm = rho::normalize(&outer).expect("ρ normalize failed");
     if let Value::Map(m) = &norm {
-        assert!(!m.contains_key("z"), "ARTICLE I §1.1: outer null not removed");
+        assert!(
+            !m.contains_key("z"),
+            "ARTICLE I §1.1: outer null not removed"
+        );
         if let Some(Value::Map(inner_m)) = m.get("inner") {
             assert!(
                 !inner_m.contains_key("y"),
@@ -207,7 +217,7 @@ fn art1_2_rho_idempotent() {
     // ρ(ρ(v)) = ρ(v) — the supreme property
     let v = make_map(&[
         ("name", Value::String("e\u{0301}".to_string())), // NFD
-        ("gone", Value::Null),                              // will be stripped
+        ("gone", Value::Null),                            // will be stripped
         ("num", Value::Int(42)),
     ]);
     let r1 = rho::normalize(&v).expect("first ρ failed");
@@ -249,7 +259,8 @@ fn art1_2_rho_hash_stable() {
         "ARTICLE I §1.2: CID must start with 'b3:', got '{cid1}'"
     );
     assert_eq!(
-        cid1.len(), 3 + 64,
+        cid1.len(),
+        3 + 64,
         "ARTICLE I §1.2: CID must be 'b3:' + 64 hex chars, got length {}",
         cid1.len()
     );
@@ -288,9 +299,8 @@ fn art1_4_blessed_path_roundtrip() {
         ("data", Value::Bytes(vec![0xFF, 0x00])),
     ]);
     let bytes = rho::canonical_encode(&v).expect("canonical_encode failed");
-    let decoded = decode(&bytes).expect(
-        "ARTICLE I §1.4 VIOLATION: canonical_encode output could not be decoded"
-    );
+    let decoded = decode(&bytes)
+        .expect("ARTICLE I §1.4 VIOLATION: canonical_encode output could not be decoded");
     assert_eq!(
         v, decoded,
         "ARTICLE I §1.4 VIOLATION: blessed path roundtrip failed. \
@@ -366,7 +376,7 @@ fn art3_kat_int64_negative_one() {
     let bytes = encode(&Value::Int(-1));
     let expected: Vec<u8> = vec![
         0x6E, 0x72, 0x66, 0x31, // magic
-        0x03,                     // Int64 tag
+        0x03, // Int64 tag
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // -1 big-endian
     ];
     assert_eq!(
@@ -381,8 +391,8 @@ fn art3_kat_string_hello() {
     let bytes = encode(&Value::String("hello".into()));
     let expected: Vec<u8> = vec![
         0x6E, 0x72, 0x66, 0x31, // magic
-        0x04,                     // String tag
-        0x05,                     // varint32(5)
+        0x04, // String tag
+        0x05, // varint32(5)
         0x68, 0x65, 0x6C, 0x6C, 0x6F, // "hello"
     ];
     assert_eq!(
@@ -398,10 +408,10 @@ fn art3_kat_array_true_42() {
     let bytes = encode(&v);
     let expected: Vec<u8> = vec![
         0x6E, 0x72, 0x66, 0x31, // magic
-        0x06,                     // Array tag
-        0x02,                     // varint32(2) count
-        0x02,                     // True tag
-        0x03,                     // Int64 tag
+        0x06, // Array tag
+        0x02, // varint32(2) count
+        0x02, // True tag
+        0x03, // Int64 tag
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, // 42 big-endian
     ];
     assert_eq!(
@@ -417,12 +427,12 @@ fn art3_kat_map_a1_btrue() {
     let bytes = encode(&v);
     let expected: Vec<u8> = vec![
         0x6E, 0x72, 0x66, 0x31, // magic
-        0x07,                     // Map tag
-        0x02,                     // varint32(2) count
-        0x04, 0x01, 0x61,        // key "a"
+        0x07, // Map tag
+        0x02, // varint32(2) count
+        0x04, 0x01, 0x61, // key "a"
         0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // Int64(1)
-        0x04, 0x01, 0x62,        // key "b"
-        0x02,                     // True
+        0x04, 0x01, 0x62, // key "b"
+        0x02, // True
     ];
     assert_eq!(
         bytes, expected,
@@ -458,7 +468,8 @@ fn art3_2_map_keys_sorted_by_bytes() {
     if let Value::Map(m) = decoded {
         let keys: Vec<&String> = m.keys().collect();
         assert_eq!(
-            keys, vec!["a", "z"],
+            keys,
+            vec!["a", "z"],
             "ARTICLE III §3.2 VIOLATION: map keys not sorted by bytes"
         );
     }
@@ -472,9 +483,9 @@ fn art3_3_decoder_rejects_non_nfc() {
     // Manually construct NRF bytes with NFD 'é' (e + combining acute = 0x65 0xCC 0x81)
     let bad_bytes: Vec<u8> = vec![
         0x6E, 0x72, 0x66, 0x31, // magic
-        0x04,                     // String tag
-        0x03,                     // varint32(3) — 3 bytes
-        0x65, 0xCC, 0x81,        // NFD é
+        0x04, // String tag
+        0x03, // varint32(3) — 3 bytes
+        0x65, 0xCC, 0x81, // NFD é
     ];
     let result = decode(&bad_bytes);
     assert!(
@@ -507,7 +518,8 @@ fn art4_1_receipt_cid_stability() {
 fn art4_1_receipt_body_cid_matches_body() {
     let r = make_receipt();
     assert_eq!(
-        r.compute_body_cid(), r.body_cid,
+        r.compute_body_cid(),
+        r.body_cid,
         "ARTICLE IV §4.1 VIOLATION: body_cid does not match BLAKE3(NRF(body)). \
          This means the body was modified after CID computation."
     );
@@ -518,7 +530,10 @@ fn art4_1_receipt_tamper_body_detected() {
     // Mutate the body AFTER computing CID → integrity check must fail
     let mut r = make_receipt();
     r.receipt_cid = r.compute_cid();
-    assert!(r.verify_integrity().is_ok(), "baseline integrity should pass");
+    assert!(
+        r.verify_integrity().is_ok(),
+        "baseline integrity should pass"
+    );
 
     // Tamper: change the body
     r.body = Value::String("tampered".into());
@@ -624,7 +639,10 @@ fn art4_2_permit_cid_stability() {
     let p = make_permit();
     let c1 = p.compute_cid();
     let c2 = p.compute_cid();
-    assert_eq!(c1, c2, "ARTICLE IV §4.2 VIOLATION: permit CID not deterministic");
+    assert_eq!(
+        c1, c2,
+        "ARTICLE IV §4.2 VIOLATION: permit CID not deterministic"
+    );
 }
 
 #[test]
@@ -709,9 +727,18 @@ fn art4_2_permit_cid_tamper_detected() {
 fn art4_3_ghost_new_pending_valid() {
     let g = make_ghost();
     assert_eq!(g.status, ghost::GhostStatus::Pending);
-    assert!(g.cause.is_none(), "ARTICLE IV §4.3: pending ghost must not have cause");
-    assert!(g.ghost_cid.starts_with("b3:"), "ARTICLE IV §4.3: ghost CID must start with b3:");
-    assert!(g.verify_integrity().is_ok(), "ARTICLE IV §4.3: new pending ghost must pass integrity");
+    assert!(
+        g.cause.is_none(),
+        "ARTICLE IV §4.3: pending ghost must not have cause"
+    );
+    assert!(
+        g.ghost_cid.starts_with("b3:"),
+        "ARTICLE IV §4.3: ghost CID must start with b3:"
+    );
+    assert!(
+        g.verify_integrity().is_ok(),
+        "ARTICLE IV §4.3: new pending ghost must pass integrity"
+    );
 }
 
 #[test]
@@ -771,7 +798,10 @@ fn art4_3_ghost_sign_verify_roundtrip() {
     let (sk, vk) = keygen();
     let mut g = make_ghost();
     g.sign(&sk);
-    assert!(g.verify(&vk), "ARTICLE IV §4.3: ghost sign/verify roundtrip failed");
+    assert!(
+        g.verify(&vk),
+        "ARTICLE IV §4.3: ghost sign/verify roundtrip failed"
+    );
 }
 
 // --- Section 4.4: Capsule structural invariants ---
@@ -930,11 +960,23 @@ fn art9_1_receipt_cid_covers_all_fields() {
     // Test each field mutation
     #[allow(clippy::type_complexity)]
     let mutations: Vec<(&str, Box<dyn Fn(&mut receipt::Receipt)>)> = vec![
-        ("issuer_did", Box::new(|r: &mut receipt::Receipt| r.issuer_did = "did:ubl:other".into())),
-        ("act", Box::new(|r: &mut receipt::Receipt| r.act = "EVALUATE".into())),
+        (
+            "issuer_did",
+            Box::new(|r: &mut receipt::Receipt| r.issuer_did = "did:ubl:other".into()),
+        ),
+        (
+            "act",
+            Box::new(|r: &mut receipt::Receipt| r.act = "EVALUATE".into()),
+        ),
         ("t", Box::new(|r: &mut receipt::Receipt| r.t = 999)),
-        ("url", Box::new(|r: &mut receipt::Receipt| r.url = "https://other.com".into())),
-        ("nonce", Box::new(|r: &mut receipt::Receipt| r.nonce = vec![1u8; 16])),
+        (
+            "url",
+            Box::new(|r: &mut receipt::Receipt| r.url = "https://other.com".into()),
+        ),
+        (
+            "nonce",
+            Box::new(|r: &mut receipt::Receipt| r.nonce = vec![1u8; 16]),
+        ),
     ];
 
     for (field, mutate) in mutations {
@@ -1077,7 +1119,8 @@ fn pipeline_permit_authorizes_receipt() {
     assert!(r.verify(&vk));
     assert!(r.verify_integrity().is_ok());
     assert_eq!(
-        r.permit_cid.as_ref().unwrap(), &p.permit_cid,
+        r.permit_cid.as_ref().unwrap(),
+        &p.permit_cid,
         "PIPELINE: receipt must carry the permit CID that authorized it"
     );
 }
@@ -1145,7 +1188,8 @@ fn art1_1_rho_timestamp_reject_non_utc() {
 #[test]
 fn art1_1_rho_decimal_strip_dot_zero() {
     assert_eq!(
-        rho::normalize_decimal("1.0").unwrap(), "1",
+        rho::normalize_decimal("1.0").unwrap(),
+        "1",
         "ARTICLE I §1.1: ρ must strip superfluous .0 from decimals"
     );
 }
@@ -1153,7 +1197,8 @@ fn art1_1_rho_decimal_strip_dot_zero() {
 #[test]
 fn art1_1_rho_decimal_negative_zero() {
     assert_eq!(
-        rho::normalize_decimal("-0").unwrap(), "0",
+        rho::normalize_decimal("-0").unwrap(),
+        "0",
         "ARTICLE I §1.1: ρ must normalize -0 to 0"
     );
 }

@@ -46,7 +46,8 @@ async fn start_server() -> String {
     let app = registry::build_router(state);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}"))
-        .await.unwrap();
+        .await
+        .unwrap();
 
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
@@ -80,7 +81,9 @@ async fn test_create_receipt_without_auth_returns_401() {
             "act": "ATTEST",
             "subject": "b3:0000000000000000000000000000000000000000000000000000000000000000"
         }))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -102,9 +105,16 @@ async fn test_full_pipeline_creates_receipt() {
             "act": "ATTEST",
             "subject": "b3:0000000000000000000000000000000000000000000000000000000000000000"
         }))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
 
-    assert_eq!(resp.status(), StatusCode::OK, "pipeline failed: {}", resp.text().await.unwrap_or_default());
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "pipeline failed: {}",
+        resp.text().await.unwrap_or_default()
+    );
 
     let resp = client
         .post(format!("{base}/v1/lab512/dev/receipts"))
@@ -114,16 +124,30 @@ async fn test_full_pipeline_creates_receipt() {
             "act": "ATTEST",
             "subject": "b3:0000000000000000000000000000000000000000000000000000000000000000"
         }))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
 
     let receipt: Value = resp.json().await.unwrap();
 
     assert!(receipt["id"].is_string(), "must have id");
-    assert!(receipt["receipt_cid"].as_str().unwrap().starts_with("b3:"), "receipt_cid must be b3:*");
-    assert!(receipt["ghost_cid"].as_str().unwrap().starts_with("b3:"), "ghost_cid must be b3:*");
+    assert!(
+        receipt["receipt_cid"].as_str().unwrap().starts_with("b3:"),
+        "receipt_cid must be b3:*"
+    );
+    assert!(
+        receipt["ghost_cid"].as_str().unwrap().starts_with("b3:"),
+        "ghost_cid must be b3:*"
+    );
     assert_eq!(receipt["act"], "ATTEST");
-    assert!(receipt["body_cid"].as_str().unwrap().starts_with("b3:"), "body_cid must be b3:*");
-    assert!(receipt["verifying_key_hex"].is_string(), "must return verifying key");
+    assert!(
+        receipt["body_cid"].as_str().unwrap().starts_with("b3:"),
+        "body_cid must be b3:*"
+    );
+    assert!(
+        receipt["verifying_key_hex"].is_string(),
+        "must return verifying key"
+    );
 
     let cid = receipt["receipt_cid"].as_str().unwrap();
     let cid_hex = cid.strip_prefix("b3:").unwrap();
@@ -136,11 +160,12 @@ async fn test_different_bodies_produce_different_cids() {
     let base = start_server().await;
     let client = reqwest::Client::new();
 
-    let post = |body: Value| {
-        let client = client.clone();
-        let base = base.clone();
-        async move {
-            client.post(format!("{base}/v1/lab512/dev/receipts"))
+    let post =
+        |body: Value| {
+            let client = client.clone();
+            let base = base.clone();
+            async move {
+                client.post(format!("{base}/v1/lab512/dev/receipts"))
                 .header("x-user-id", "00000000-0000-0000-0000-000000000099")
                 .json(&json!({
                     "body": body,
@@ -149,8 +174,8 @@ async fn test_different_bodies_produce_different_cids() {
                 }))
                 .send().await.unwrap()
                 .json::<Value>().await.unwrap()
-        }
-    };
+            }
+        };
 
     let r1 = post(json!({"name": "alpha"})).await;
     let r2 = post(json!({"name": "beta"})).await;

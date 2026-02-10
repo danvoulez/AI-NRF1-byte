@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // Act Templates — the 3 basis vectors (BASE terrain)
@@ -41,7 +41,7 @@ pub struct Context {
     pub tenant: String,
     pub actor_did: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pipeline_prev: Vec<String>,     // CIDs of prior act receipts
+    pub pipeline_prev: Vec<String>, // CIDs of prior act receipts
 }
 
 // ---------------------------------------------------------------------------
@@ -50,16 +50,16 @@ pub struct Context {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Subject {
-    pub kind: String,                   // e.g. "model_card", "sbom", "document", "artifact"
-    pub id: String,                     // external identifier
+    pub kind: String, // e.g. "model_card", "sbom", "document", "artifact"
+    pub id: String,   // external identifier
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cid: Option<String>,           // b3:<hex> if already hashed
+    pub cid: Option<String>, // b3:<hex> if already hashed
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Evidence {
-    pub kind: String,                   // e.g. "benchmark", "scan", "certificate"
-    pub cid: String,                    // b3:<hex>
+    pub kind: String, // e.g. "benchmark", "scan", "certificate"
+    pub cid: String,  // b3:<hex>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 }
@@ -80,10 +80,10 @@ pub struct AttestRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EvaluateRequest {
     pub subject: Subject,
-    pub rules_ref: Vec<String>,         // policy pack references
-    pub facts: serde_json::Value,       // the data to evaluate
+    pub rules_ref: Vec<String>,   // policy pack references
+    pub facts: serde_json::Value, // the data to evaluate
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pipeline_prev: Option<String>,  // CID of prior act receipt (e.g. ATTEST)
+    pub pipeline_prev: Option<String>, // CID of prior act receipt (e.g. ATTEST)
     pub context: Context,
 }
 
@@ -94,7 +94,7 @@ pub struct EvaluateRequest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Party {
     pub did: String,
-    pub role: String,                   // e.g. "sender", "receiver", "buyer", "seller"
+    pub role: String, // e.g. "sender", "receiver", "buyer", "seller"
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

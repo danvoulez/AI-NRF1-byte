@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -32,17 +32,17 @@ pub enum LedgerEvent {
 /// A single append-only ledger entry with full RBAC context
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LedgerEntry {
-    pub ts: String,                     // RFC-3339 UTC
+    pub ts: String, // RFC-3339 UTC
     pub event: LedgerEvent,
-    pub app: String,                    // app slug
-    pub tenant: String,                 // tenant slug
-    pub user_id: Option<Uuid>,         // who performed the action
-    pub roles: Vec<String>,            // RBAC roles at time of action
-    pub entity_id: Uuid,               // receipt or ghost UUID
-    pub cid: String,                   // content-addressed ID
-    pub did: String,                   // issuer or actor DID
-    pub decision: Option<String>,      // ALLOW | DENY | REQUIRE | GHOST
-    pub payload: serde_json::Value,    // full signed object
+    pub app: String,                // app slug
+    pub tenant: String,             // tenant slug
+    pub user_id: Option<Uuid>,      // who performed the action
+    pub roles: Vec<String>,         // RBAC roles at time of action
+    pub entity_id: Uuid,            // receipt or ghost UUID
+    pub cid: String,                // content-addressed ID
+    pub did: String,                // issuer or actor DID
+    pub decision: Option<String>,   // ALLOW | DENY | REQUIRE | GHOST
+    pub payload: serde_json::Value, // full signed object
 }
 
 impl LedgerEntry {
@@ -78,9 +78,9 @@ impl LedgerEntry {
     pub fn stream_name(&self) -> &'static str {
         match self.event {
             LedgerEvent::ReceiptCreated => "receipts",
-            LedgerEvent::GhostCreated
-            | LedgerEvent::GhostPromoted
-            | LedgerEvent::GhostExpired => "ghosts",
+            LedgerEvent::GhostCreated | LedgerEvent::GhostPromoted | LedgerEvent::GhostExpired => {
+                "ghosts"
+            }
         }
     }
 }
@@ -105,11 +105,15 @@ impl std::fmt::Display for LedgerError {
 }
 
 impl From<std::io::Error> for LedgerError {
-    fn from(e: std::io::Error) -> Self { LedgerError::Io(e.to_string()) }
+    fn from(e: std::io::Error) -> Self {
+        LedgerError::Io(e.to_string())
+    }
 }
 
 impl From<serde_json::Error> for LedgerError {
-    fn from(e: serde_json::Error) -> Self { LedgerError::Serialization(e.to_string()) }
+    fn from(e: serde_json::Error) -> Self {
+        LedgerError::Serialization(e.to_string())
+    }
 }
 
 /// Append-only ledger writer. BASE terrain.

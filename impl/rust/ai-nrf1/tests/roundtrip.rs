@@ -1,4 +1,4 @@
-use ai_nrf1::{Value, encode, decode};
+use ai_nrf1::{decode, encode, Value};
 use std::collections::BTreeMap;
 
 #[test]
@@ -52,7 +52,10 @@ fn test_bad_magic() {
 #[test]
 fn test_unknown_tag() {
     let data = b"nrf1\x08";
-    assert!(matches!(decode(data), Err(ai_nrf1::Error::InvalidTypeTag(0x08))));
+    assert!(matches!(
+        decode(data),
+        Err(ai_nrf1::Error::InvalidTypeTag(0x08))
+    ));
 }
 
 #[test]
@@ -60,21 +63,21 @@ fn test_varint_overflow() {
     // 5-byte varint 0x1F_FF_FF_FF_FF = 4294967295 (max u32) is technically
     // minimal, but requests ~4GB of bytes from a near-empty buffer.
     // nrf-core correctly parses the varint then fails on UnexpectedEOF.
-    let data = vec![0x6E,0x72,0x66,0x31, 0x05, 0xFF,0xFF,0xFF,0xFF,0x1F];
+    let data = vec![0x6E, 0x72, 0x66, 0x31, 0x05, 0xFF, 0xFF, 0xFF, 0xFF, 0x1F];
     assert!(decode(&data).is_err());
 
     // True non-minimal: leading 0x80 (zero with continuation bit)
-    let non_minimal = vec![0x6E,0x72,0x66,0x31, 0x05, 0x80, 0x01];
-    assert!(matches!(decode(&non_minimal), Err(ai_nrf1::Error::NonMinimalVarint)));
+    let non_minimal = vec![0x6E, 0x72, 0x66, 0x31, 0x05, 0x80, 0x01];
+    assert!(matches!(
+        decode(&non_minimal),
+        Err(ai_nrf1::Error::NonMinimalVarint)
+    ));
 }
 
 #[test]
 fn test_duplicate_key() {
     let data = vec![
-        0x6E,0x72,0x66,0x31,
-        0x07,0x02,
-        0x04,0x01,0x61, 0x02,
-        0x04,0x01,0x61, 0x01,
+        0x6E, 0x72, 0x66, 0x31, 0x07, 0x02, 0x04, 0x01, 0x61, 0x02, 0x04, 0x01, 0x61, 0x01,
     ];
     assert!(matches!(decode(&data), Err(ai_nrf1::Error::DuplicateKey)));
 }
@@ -82,16 +85,13 @@ fn test_duplicate_key() {
 #[test]
 fn test_unsorted_keys() {
     let data = vec![
-        0x6E,0x72,0x66,0x31,
-        0x07,0x02,
-        0x04,0x01,0x62, 0x02,
-        0x04,0x01,0x61, 0x01,
+        0x6E, 0x72, 0x66, 0x31, 0x07, 0x02, 0x04, 0x01, 0x62, 0x02, 0x04, 0x01, 0x61, 0x01,
     ];
     assert!(matches!(decode(&data), Err(ai_nrf1::Error::UnsortedKeys)));
 }
 
 #[test]
 fn test_bom_present() {
-    let data = vec![0x6E,0x72,0x66,0x31, 0x04, 0x03, 0xEF,0xBB,0xBF];
+    let data = vec![0x6E, 0x72, 0x66, 0x31, 0x04, 0x03, 0xEF, 0xBB, 0xBF];
     assert!(matches!(decode(&data), Err(ai_nrf1::Error::BOMPresent)));
 }

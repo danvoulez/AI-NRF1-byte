@@ -16,7 +16,7 @@ fn arb_value() -> impl Strategy<Value = Value> {
         "[a-zA-Z0-9_]{0,20}".prop_map(Value::String),
         // Bytes of specific lengths that roundtrip cleanly
         prop_oneof![
-            Just(vec![]).prop_map(Value::Bytes),                       // empty
+            Just(vec![]).prop_map(Value::Bytes), // empty
             proptest::collection::vec(any::<u8>(), 16).prop_map(Value::Bytes), // 16
             proptest::collection::vec(any::<u8>(), 32).prop_map(Value::Bytes), // 32
             proptest::collection::vec(any::<u8>(), 64).prop_map(Value::Bytes), // 64
@@ -30,13 +30,8 @@ fn arb_value() -> impl Strategy<Value = Value> {
         8,  // items per collection
         |inner| {
             prop_oneof![
-                proptest::collection::vec(inner.clone(), 0..4)
-                    .prop_map(Value::Array),
-                proptest::collection::vec(
-                    ("[a-z]{1,8}", inner),
-                    0..4
-                )
-                .prop_map(|pairs| {
+                proptest::collection::vec(inner.clone(), 0..4).prop_map(Value::Array),
+                proptest::collection::vec(("[a-z]{1,8}", inner), 0..4).prop_map(|pairs| {
                     let mut m = BTreeMap::new();
                     for (k, v) in pairs {
                         m.insert(k, v);

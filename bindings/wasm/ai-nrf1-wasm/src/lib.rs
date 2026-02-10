@@ -1,6 +1,6 @@
-use wasm_bindgen::prelude::*;
 use nrf_core::Value;
 use std::collections::BTreeMap;
+use wasm_bindgen::prelude::*;
 
 // ---------------------------------------------------------------------------
 // ai-nrf1 WASM bindings
@@ -17,10 +17,9 @@ use std::collections::BTreeMap;
 pub fn js_encode(val: JsValue) -> Result<Vec<u8>, JsError> {
     let json: serde_json::Value = serde_wasm_bindgen::from_value(val)
         .map_err(|e| JsError::new(&format!("InvalidInput: {e}")))?;
-    let nrf_val = json_to_value(&json)
-        .map_err(|e| JsError::new(&e))?;
-    let normalized = nrf_core::rho::normalize(&nrf_val)
-        .map_err(|e| JsError::new(&format!("{e}")))?;
+    let nrf_val = json_to_value(&json).map_err(|e| JsError::new(&e))?;
+    let normalized =
+        nrf_core::rho::normalize(&nrf_val).map_err(|e| JsError::new(&format!("{e}")))?;
     Ok(nrf_core::encode(&normalized))
 }
 
@@ -29,11 +28,9 @@ pub fn js_encode(val: JsValue) -> Result<Vec<u8>, JsError> {
 /// Output: JS object (JSON-compatible).
 #[wasm_bindgen(js_name = "decode")]
 pub fn js_decode(bytes: &[u8]) -> Result<JsValue, JsError> {
-    let val = nrf_core::decode(bytes)
-        .map_err(|e| JsError::new(&format!("{e}")))?;
+    let val = nrf_core::decode(bytes).map_err(|e| JsError::new(&format!("{e}")))?;
     let json = value_to_json(&val);
-    serde_wasm_bindgen::to_value(&json)
-        .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
+    serde_wasm_bindgen::to_value(&json).map_err(|e| JsError::new(&format!("SerializeError: {e}")))
 }
 
 /// Hash raw bytes with BLAKE3. Returns 32-byte Uint8Array.
@@ -56,18 +53,15 @@ pub fn js_hash_value(val: JsValue) -> Result<Vec<u8>, JsError> {
 pub fn js_canonical_cid(val: JsValue) -> Result<String, JsError> {
     let json: serde_json::Value = serde_wasm_bindgen::from_value(val)
         .map_err(|e| JsError::new(&format!("InvalidInput: {e}")))?;
-    let nrf_val = json_to_value(&json)
-        .map_err(|e| JsError::new(&e))?;
-    nrf_core::rho::canonical_cid(&nrf_val)
-        .map_err(|e| JsError::new(&format!("{e}")))
+    let nrf_val = json_to_value(&json).map_err(|e| JsError::new(&e))?;
+    nrf_core::rho::canonical_cid(&nrf_val).map_err(|e| JsError::new(&format!("{e}")))
 }
 
 /// Verify that NRF bytes decode successfully and are canonical.
 /// Returns true if valid, throws on error.
 #[wasm_bindgen(js_name = "verify")]
 pub fn js_verify(bytes: &[u8]) -> Result<bool, JsError> {
-    let val = nrf_core::decode(bytes)
-        .map_err(|e| JsError::new(&format!("{e}")))?;
+    let val = nrf_core::decode(bytes).map_err(|e| JsError::new(&format!("{e}")))?;
     // Re-encode and check roundtrip
     let re_encoded = nrf_core::encode(&val);
     if re_encoded != bytes {
@@ -82,10 +76,9 @@ pub fn js_verify(bytes: &[u8]) -> Result<bool, JsError> {
 pub fn js_normalize(val: JsValue) -> Result<JsValue, JsError> {
     let json: serde_json::Value = serde_wasm_bindgen::from_value(val)
         .map_err(|e| JsError::new(&format!("InvalidInput: {e}")))?;
-    let nrf_val = json_to_value(&json)
-        .map_err(|e| JsError::new(&e))?;
-    let normalized = nrf_core::rho::normalize(&nrf_val)
-        .map_err(|e| JsError::new(&format!("{e}")))?;
+    let nrf_val = json_to_value(&json).map_err(|e| JsError::new(&e))?;
+    let normalized =
+        nrf_core::rho::normalize(&nrf_val).map_err(|e| JsError::new(&format!("{e}")))?;
     let out_json = value_to_json(&normalized);
     serde_wasm_bindgen::to_value(&out_json)
         .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
@@ -100,8 +93,7 @@ pub fn js_encode_hex(bytes: &[u8]) -> String {
 /// Parse a lowercase hex string into bytes.
 #[wasm_bindgen(js_name = "parseHex")]
 pub fn js_parse_hex(hex: &str) -> Result<Vec<u8>, JsError> {
-    nrf_core::parse_hex_lower(hex)
-        .map_err(|e| JsError::new(&format!("{e}")))
+    nrf_core::parse_hex_lower(hex).map_err(|e| JsError::new(&format!("{e}")))
 }
 
 /// Return the version of the WASM bindings.
@@ -130,12 +122,10 @@ fn json_to_value(j: &serde_json::Value) -> Result<Value, String> {
         serde_json::Value::String(s) => {
             // Check for b3: hex prefix (bytes convention)
             if let Some(hex) = s.strip_prefix("b3:") {
-                let bytes = nrf_core::parse_hex_lower(hex)
-                    .map_err(|e| format!("{e}"))?;
+                let bytes = nrf_core::parse_hex_lower(hex).map_err(|e| format!("{e}"))?;
                 Ok(Value::Bytes(bytes))
             } else if let Some(hex) = s.strip_prefix("0x") {
-                let bytes = nrf_core::parse_hex_lower(hex)
-                    .map_err(|e| format!("{e}"))?;
+                let bytes = nrf_core::parse_hex_lower(hex).map_err(|e| format!("{e}"))?;
                 Ok(Value::Bytes(bytes))
             } else {
                 Ok(Value::String(s.clone()))
@@ -167,9 +157,7 @@ fn value_to_json(v: &Value) -> serde_json::Value {
         Value::Bytes(b) => {
             serde_json::Value::String(format!("b3:{}", nrf_core::encode_hex_lower(b)))
         }
-        Value::Array(items) => {
-            serde_json::Value::Array(items.iter().map(value_to_json).collect())
-        }
+        Value::Array(items) => serde_json::Value::Array(items.iter().map(value_to_json).collect()),
         Value::Map(m) => {
             let obj: serde_json::Map<String, serde_json::Value> = m
                 .iter()

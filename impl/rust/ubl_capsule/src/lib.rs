@@ -12,9 +12,9 @@
 //! The `id` is stable: it does NOT change when receipts/signatures are added.
 
 pub mod id;
-pub mod seal;
 pub mod receipt;
+pub mod seal;
 pub mod types;
 
-pub use types::*;
 pub use id::compute_id;
+pub use types::*;

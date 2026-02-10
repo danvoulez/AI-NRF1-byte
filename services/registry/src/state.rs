@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use ed25519_dalek::SigningKey;
+use std::sync::Arc;
 use ubl_storage::ledger::LedgerWriter;
 
 // ---------------------------------------------------------------------------
@@ -11,8 +11,8 @@ use ubl_storage::ledger::LedgerWriter;
 
 #[derive(Clone)]
 pub struct Config {
-    pub public_base: String,        // e.g. "https://passports.ubl.agency"
-    pub issuer_did: String,         // DID of this service instance
+    pub public_base: String, // e.g. "https://passports.ubl.agency"
+    pub issuer_did: String,  // DID of this service instance
 }
 
 impl Config {
@@ -42,8 +42,9 @@ impl AppState {
         let signing_key = match std::env::var("SIGNING_KEY_HEX") {
             Ok(hex_str) => {
                 let bytes = hex::decode(&hex_str)?;
-                let bytes: [u8; 32] = bytes.try_into()
-                    .map_err(|_| anyhow::anyhow!("SIGNING_KEY_HEX must be 32 bytes (64 hex chars)"))?;
+                let bytes: [u8; 32] = bytes.try_into().map_err(|_| {
+                    anyhow::anyhow!("SIGNING_KEY_HEX must be 32 bytes (64 hex chars)")
+                })?;
                 SigningKey::from_bytes(&bytes)
             }
             Err(_) => {
@@ -55,15 +56,18 @@ impl AppState {
         let verifying_key = signing_key.verifying_key();
 
         // Runtime attestation
-        let binary_sha256 = std::env::var("BINARY_SHA256")
-            .unwrap_or_else(|_| "dev-build-no-hash".into());
+        let binary_sha256 =
+            std::env::var("BINARY_SHA256").unwrap_or_else(|_| "dev-build-no-hash".into());
         let rt = runtime::SelfAttestation::new(&binary_sha256);
 
         // Append-only audit ledger (BASE trait, MODULE implementation)
         #[cfg(feature = "module-ledger-ndjson")]
         let ledger: Arc<dyn LedgerWriter> = {
             let l = Arc::new(ledger_ndjson::NdjsonLedger::from_env());
-            tracing::info!("ledger: ndjson ({})", std::env::var("LEDGER_DIR").unwrap_or_else(|_| "./data/ledger".into()));
+            tracing::info!(
+                "ledger: ndjson ({})",
+                std::env::var("LEDGER_DIR").unwrap_or_else(|_| "./data/ledger".into())
+            );
             l
         };
         #[cfg(not(feature = "module-ledger-ndjson"))]

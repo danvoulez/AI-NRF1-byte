@@ -1,6 +1,6 @@
-pub mod state;
 pub mod middleware;
 pub mod routes;
+pub mod state;
 
 use axum::{routing::get, Json, Router};
 use serde::Serialize;

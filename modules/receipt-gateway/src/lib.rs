@@ -1,5 +1,5 @@
-use nrf_core::{Value, rho};
 use ed25519_dalek::SigningKey;
+use nrf_core::{rho, Value};
 use thiserror::Error;
 
 // ---------------------------------------------------------------------------
@@ -60,13 +60,13 @@ pub enum GatewayError {
 #[derive(Debug, Clone)]
 pub struct GatewayRequest {
     pub issuer_did: String,
-    pub act: String,                            // ATTEST | EVALUATE | TRANSACT
-    pub subject: String,                        // CID of what's being acted on
-    pub body: Value,                            // the payload (will be ρ-normalized)
-    pub policy_id: Option<String>,              // which policy to evaluate (None = existence only)
-    pub pipeline_prev: Vec<String>,             // CIDs of prior act receipts
-    pub url_base: String,                       // e.g. "https://passports.ubl.agency/app/tenant/receipts/id.json"
-    pub nonce: Vec<u8>,                         // 16 bytes entropy
+    pub act: String,                // ATTEST | EVALUATE | TRANSACT
+    pub subject: String,            // CID of what's being acted on
+    pub body: Value,                // the payload (will be ρ-normalized)
+    pub policy_id: Option<String>,  // which policy to evaluate (None = existence only)
+    pub pipeline_prev: Vec<String>, // CIDs of prior act receipts
+    pub url_base: String, // e.g. "https://passports.ubl.agency/app/tenant/receipts/id.json"
+    pub nonce: Vec<u8>,   // 16 bytes entropy
 }
 
 #[derive(Debug, Clone)]
@@ -91,7 +91,6 @@ pub fn execute(
     signing_key: &SigningKey,
     rt_info: receipt::RuntimeInfo,
 ) -> Result<GatewayResult, GatewayError> {
-
     // --- Step 0: Validate act vocabulary (Article V) ---
     match req.act.as_str() {
         "ATTEST" | "EVALUATE" | "TRANSACT" => {}
@@ -99,20 +98,23 @@ pub fn execute(
     }
 
     // --- Step 1: ρ-normalize the body (Article I) ---
-    let body = rho::normalize(&req.body)
-        .map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
-    let body_cid = rho::canonical_cid(&body)
-        .map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
+    let body = rho::normalize(&req.body).map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
+    let body_cid =
+        rho::canonical_cid(&body).map_err(|e| GatewayError::RhoFailed(format!("{e}")))?;
 
     // --- Step 2: Policy gate (Article VI) ---
     let context_cid = body_cid.clone();
     let eval_req = ubl_policy::EvalRequest {
-        policy_id: req.policy_id.clone().unwrap_or_else(|| "existence/default@1".into()),
+        policy_id: req
+            .policy_id
+            .clone()
+            .unwrap_or_else(|| "existence/default@1".into()),
         context_cid,
         input: serde_json::to_value(body_to_json(&body)).unwrap_or_default(),
         pipeline_prev: req.pipeline_prev.clone(),
     };
-    let eval_resp = policy_engine.evaluate(&eval_req)
+    let eval_resp = policy_engine
+        .evaluate(&eval_req)
         .map_err(|e| GatewayError::PolicyFailed(e.to_string()))?;
 
     // --- Step 3: Ghost(pending) — WBE discipline (Article IV §4.3, Module §2.3) ---
@@ -122,11 +124,7 @@ pub fn execute(
         when: now_nanos(),
         intent: req.act.clone(),
     };
-    let mut g = ghost::Ghost::new_pending(
-        wbe,
-        req.nonce.clone(),
-        req.url_base.clone(),
-    );
+    let mut g = ghost::Ghost::new_pending(wbe, req.nonce.clone(), req.url_base.clone());
     g.sign(signing_key);
 
     // --- Step 4: Build Receipt (Article IV §4.1) ---
@@ -172,12 +170,7 @@ pub fn execute(
     // --- Step 5: Compute CID and sign (Article II — the fractal) ---
     r.receipt_cid = r.compute_cid();
     // Fix the URL with the real CID
-    r.url = receipt::rich_url(
-        &req.url_base,
-        &r.receipt_cid,
-        &r.issuer_did,
-        &r.act,
-    );
+    r.url = receipt::rich_url(&req.url_base, &r.receipt_cid, &r.issuer_did, &r.act);
     // Recompute CID after URL update (URL is part of the hash preimage)
     r.receipt_cid = r.compute_cid();
     r.sign(signing_key);
@@ -214,7 +207,8 @@ fn body_to_json(v: &Value) -> serde_json::Value {
         Value::Bytes(b) => serde_json::json!({"$bytes": hex::encode(b)}),
         Value::Array(arr) => serde_json::Value::Array(arr.iter().map(body_to_json).collect()),
         Value::Map(m) => {
-            let obj: serde_json::Map<String, serde_json::Value> = m.iter()
+            let obj: serde_json::Map<String, serde_json::Value> = m
+                .iter()
                 .map(|(k, v)| (k.clone(), body_to_json(v)))
                 .collect();
             serde_json::Value::Object(obj)
@@ -293,8 +287,8 @@ mod tests {
     fn module_produces_valid_receipt() {
         let (sk, vk) = test_key();
         let policy = ExistencePolicy;
-        let result = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline should succeed");
+        let result =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline should succeed");
 
         assert_eq!(result.receipt.v, "receipt-v1");
         assert!(result.receipt.receipt_cid.starts_with("b3:"));
@@ -310,8 +304,8 @@ mod tests {
     fn module_receipt_passes_integrity() {
         let (sk, _vk) = test_key();
         let policy = ExistencePolicy;
-        let result = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline should succeed");
+        let result =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline should succeed");
 
         assert!(
             result.receipt.verify_integrity().is_ok(),
@@ -326,10 +320,10 @@ mod tests {
         let policy = ExistencePolicy;
 
         // Same body → same body_cid (even if receipt_cid differs due to timestamp)
-        let r1 = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline 1 should succeed");
-        let r2 = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline 2 should succeed");
+        let r1 =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline 1 should succeed");
+        let r2 =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline 2 should succeed");
 
         assert_eq!(
             r1.receipt.body_cid, r2.receipt.body_cid,
@@ -342,12 +336,18 @@ mod tests {
     fn module_creates_ghost_before_receipt() {
         let (sk, vk) = test_key();
         let policy = ExistencePolicy;
-        let result = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline should succeed");
+        let result =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline should succeed");
 
         assert_eq!(result.ghost.status, ghost::GhostStatus::Pending);
-        assert!(result.ghost.sig.is_some(), "MODULE §2.3: ghost must be signed");
-        assert!(result.ghost.verify(&vk), "MODULE §2.3: ghost sig must verify");
+        assert!(
+            result.ghost.sig.is_some(),
+            "MODULE §2.3: ghost must be signed"
+        );
+        assert!(
+            result.ghost.verify(&vk),
+            "MODULE §2.3: ghost sig must verify"
+        );
         assert!(
             result.ghost.t <= result.receipt.t,
             "MODULE §2.3: ghost must be created BEFORE receipt (WBE)"
@@ -362,10 +362,7 @@ mod tests {
         let mut req = test_request();
         req.act = "INVALID".into();
         let err = execute(req, &policy, &sk, test_rt());
-        assert!(
-            err.is_err(),
-            "MODULE: invalid act must be rejected"
-        );
+        assert!(err.is_err(), "MODULE: invalid act must be rejected");
         let msg = format!("{}", err.unwrap_err());
         assert!(
             msg.contains("ACT-001"),
@@ -386,8 +383,7 @@ mod tests {
             m.insert("strip_me".into(), Value::Null);
             m
         });
-        let result = execute(req, &policy, &sk, test_rt())
-            .expect("pipeline should succeed");
+        let result = execute(req, &policy, &sk, test_rt()).expect("pipeline should succeed");
 
         if let Value::Map(m) = &result.receipt.body {
             assert!(
@@ -404,11 +400,12 @@ mod tests {
     fn module_policy_decision_flows_through() {
         let (sk, _vk) = test_key();
         let policy = ExistencePolicy;
-        let result = execute(test_request(), &policy, &sk, test_rt())
-            .expect("pipeline should succeed");
+        let result =
+            execute(test_request(), &policy, &sk, test_rt()).expect("pipeline should succeed");
 
         assert_eq!(
-            result.receipt.decision.as_deref(), Some("ALLOW"),
+            result.receipt.decision.as_deref(),
+            Some("ALLOW"),
             "MODULE §6.3: decision must reflect what PolicyEngine returned"
         );
         assert_eq!(result.decision, ubl_policy::Decision::Allow);
@@ -437,15 +434,13 @@ mod tests {
 
         // Receipt 1: ATTEST
         let req1 = test_request();
-        let r1 = execute(req1, &policy, &sk, test_rt())
-            .expect("pipeline 1 should succeed");
+        let r1 = execute(req1, &policy, &sk, test_rt()).expect("pipeline 1 should succeed");
 
         // Receipt 2: EVALUATE referencing Receipt 1
         let mut req2 = test_request();
         req2.act = "EVALUATE".into();
         req2.pipeline_prev = vec![r1.receipt.receipt_cid.clone()];
-        let r2 = execute(req2, &policy, &sk, test_rt())
-            .expect("pipeline 2 should succeed");
+        let r2 = execute(req2, &policy, &sk, test_rt()).expect("pipeline 2 should succeed");
 
         assert_eq!(
             r2.receipt.pipeline_prev[0], r1.receipt.receipt_cid,
