@@ -17,11 +17,36 @@ if [ ! -f tests/keys/alice.sk ]; then
   exit 1
 fi
 
+if [ ! -f tests/keys/relay.sk ] || [ ! -f tests/keys/exec.sk ]; then
+  echo "[vectors] missing tests/keys/(relay|exec).sk; run: make vectors-keys"
+  exit 1
+fi
+
 echo "[vectors] signing capsule json"
-for name in capsule_ack capsule_ask capsule_nack; do
+for name in capsule_ack capsule_ask capsule_nack capsule_expired; do
   "$UBL" cap sign "tests/vectors/capsule/${name}.json" --sk tests/keys/alice.sk -o "tests/vectors/capsule/${name}.signed.json"
   "$UBL" cap to-nrf "tests/vectors/capsule/${name}.signed.json" -o "tests/vectors/capsule/${name}.signed.nrf"
 done
 
-echo "[vectors] signed"
+echo "[vectors] building chain2 vector (2 hops)"
+"$UBL" cap sign tests/vectors/capsule/capsule_ack.json --sk tests/keys/alice.sk -o tests/vectors/capsule/capsule_ack.chain2.signed.json
+"$UBL" cap receipt add tests/vectors/capsule/capsule_ack.chain2.signed.json --kind relay --node did:ubl:test:relay#key-1 --sk tests/keys/relay.sk --ts 1700000000100 -o tests/vectors/capsule/capsule_ack.chain2.signed.json
+"$UBL" cap receipt add tests/vectors/capsule/capsule_ack.chain2.signed.json --kind exec  --node did:ubl:test:exec#key-1  --sk tests/keys/exec.sk  --ts 1700000000200 -o tests/vectors/capsule/capsule_ack.chain2.signed.json
+"$UBL" cap to-nrf tests/vectors/capsule/capsule_ack.chain2.signed.json -o tests/vectors/capsule/capsule_ack.chain2.signed.nrf
 
+echo "[vectors] building tamper vector (signed but mutated)"
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+src = Path("tests/vectors/capsule/capsule_ack.signed.json")
+dst = Path("tests/vectors/capsule/capsule_ack.tampered.signed.json")
+
+cap = json.loads(src.read_text())
+cap.setdefault("env", {}).setdefault("body", {}).setdefault("decision", {})["reason"] = "tampered"
+dst.write_text(json.dumps(cap, indent=2) + "\n")
+print("[vectors] wrote", dst)
+PY
+"$UBL" cap to-nrf tests/vectors/capsule/capsule_ack.tampered.signed.json -o tests/vectors/capsule/capsule_ack.tampered.signed.nrf
+
+echo "[vectors] signed"

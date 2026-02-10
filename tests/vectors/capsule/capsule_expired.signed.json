@@ -1,0 +1,44 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "81803019599ddcebbc325c2b48ba7f21f56416c2c185f9e9454defc9bca1bc08",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "ts": 1700000000003,
+    "act": "ATTEST",
+    "exp": 1
+  },
+  "env": {
+    "body": {
+      "agent": {
+        "id": "did:ubl:test:alice",
+        "name": "Alice"
+      },
+      "ctx": {},
+      "decision": {
+        "metrics": {},
+        "reason": "ok",
+        "verdict": "ACK"
+      },
+      "evidence": {
+        "cids": [],
+        "urls": []
+      },
+      "intent": {
+        "args": {},
+        "kind": "ATTEST",
+        "name": "demo_expired"
+      },
+      "t": "record",
+      "v": "ubl-json/0.1.1"
+    }
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "e304c0837a3bb458806ef647aa335a550df67f4cd65ea0a22f47bf1925a8911eb533bcfea91423e424733d03e0bff48c16bc16427bef07f22172864beac32c07",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": []
+}

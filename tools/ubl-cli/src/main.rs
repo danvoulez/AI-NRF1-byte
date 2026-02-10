@@ -118,6 +118,9 @@ enum ReceiptAction {
         /// Ed25519 secret key file (32 bytes hex)
         #[arg(long)]
         sk: PathBuf,
+        /// Unix timestamp in milliseconds (defaults to current time)
+        #[arg(long)]
+        ts: Option<i64>,
         /// Output capsule JSON (or - for stdout)
         #[arg(short, long, default_value = "-")]
         output: String,
@@ -159,8 +162,9 @@ fn run(cli: Cli) -> Result<()> {
                     kind,
                     node,
                     sk,
+                    ts,
                     output,
-                } => cmd_receipt_add(&input, &kind, &node, &sk, &output),
+                } => cmd_receipt_add(&input, &kind, &node, &sk, ts, &output),
             },
         },
         Commands::Keygen { output } => cmd_keygen(&output),
@@ -361,6 +365,7 @@ fn cmd_receipt_add(
     kind: &str,
     node: &str,
     sk_path: &PathBuf,
+    ts: Option<i64>,
     output: &str,
 ) -> Result<()> {
     let json_str = read_input(input)?;
@@ -371,9 +376,12 @@ fn cmd_receipt_add(
 
     // Determine prev: last receipt's id, or [0u8; 32] for first hop
     let prev = capsule.receipts.last().map(|r| r.id).unwrap_or([0u8; 32]);
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_millis() as i64;
+    let ts = match ts {
+        Some(ts) => ts,
+        None => std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis() as i64,
+    };
 
     let receipt = ubl_capsule::receipt::add_hop(capsule.id, prev, kind, node, ts, &sk)
         .map_err(|e| anyhow!("{e}"))?;

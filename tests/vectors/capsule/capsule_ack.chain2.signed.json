@@ -1,0 +1,63 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "c38dbabd7d457be98a065d7eb02d4dad7f2a1bcca8d558845712b468d54be4db",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "00000000000000000000000000000000",
+    "ts": 1700000000000,
+    "act": "ATTEST",
+    "exp": 9223372036854775807
+  },
+  "env": {
+    "body": {
+      "agent": {
+        "id": "did:ubl:test:alice",
+        "name": "Alice"
+      },
+      "ctx": {},
+      "decision": {
+        "metrics": {},
+        "reason": "ok",
+        "verdict": "ACK"
+      },
+      "evidence": {
+        "cids": [],
+        "urls": []
+      },
+      "intent": {
+        "args": {},
+        "kind": "ATTEST",
+        "name": "demo_ack"
+      },
+      "t": "record",
+      "v": "ubl-json/0.1.1"
+    }
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "2d84b66e44a157d33c1c7f12a4010f2198c863de7e0a5cb54ad30db7f1ad494e5d792df325ff8f62f5646dfda4e32191d9936888b2579de8ef94ff32c9b0c900",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": [
+    {
+      "id": "4be67a6e320e31a98a394c4c5b247210bd1039e20e526c880ede1d8a668df59b",
+      "of": "c38dbabd7d457be98a065d7eb02d4dad7f2a1bcca8d558845712b468d54be4db",
+      "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+      "kind": "relay",
+      "node": "did:ubl:test:relay#key-1",
+      "ts": 1700000000100,
+      "sig": "be78e699bc1749c540083681a4ea2eced3318b1ce32bb310a24302c481348c19b745d1a2ace6282fa034c06d8cf9973e87be76a3f4cbf81f202813565bffbf00"
+    },
+    {
+      "id": "7b765b84de1808d762f22282a0bf010775ac36b0d6feaf338c46fd891d087b40",
+      "of": "c38dbabd7d457be98a065d7eb02d4dad7f2a1bcca8d558845712b468d54be4db",
+      "prev": "4be67a6e320e31a98a394c4c5b247210bd1039e20e526c880ede1d8a668df59b",
+      "kind": "exec",
+      "node": "did:ubl:test:exec#key-1",
+      "ts": 1700000000200,
+      "sig": "643c2d5c2fe642e0e3ad5502a0c07e03e73a06f5cdacbc0c41d1c1821592c84e8eeb338a58c279404c6dc2c3d8f87404d749351915c122de43cce76289659a04"
+    }
+  ]
+}
