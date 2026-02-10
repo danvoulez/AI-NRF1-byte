@@ -12,3 +12,6 @@ __pycache__/
 
 # Tool-local lockfile (workspace already has Cargo.lock)
 /tools/nrf1-cli/Cargo.lock
+
+# Local-only secret keys for vector generation
+tests/keys/

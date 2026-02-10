@@ -1,0 +1,44 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "66023d3ab31ef2e0fb6b69f2246b71bca0ee20f8153e999b05d214b166d9255e",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "33333333333333333333333333333333",
+    "ts": 1700000000002,
+    "act": "EVALUATE",
+    "exp": 9223372036854775807
+  },
+  "env": {
+    "body": {
+      "agent": {
+        "id": "did:ubl:test:alice",
+        "name": "Alice"
+      },
+      "ctx": {},
+      "decision": {
+        "metrics": {},
+        "reason": "policy denied",
+        "verdict": "NACK"
+      },
+      "evidence": {
+        "cids": [],
+        "urls": []
+      },
+      "intent": {
+        "args": {},
+        "kind": "EVAL",
+        "name": "demo_nack"
+      },
+      "t": "record",
+      "v": "ubl-json/0.1.1"
+    }
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "a498e9b4c3dcd01aae275707acbc7e5ca229232c9653a9dc7d34677d1d6d48912acc09b09c9241c95d182947ef0780a348c2af1030cb406fdf3dd06945954703",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": []
+}

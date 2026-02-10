@@ -1,0 +1,33 @@
+{
+  "domain": "ubl-capsule/1.0",
+  "id": "0000000000000000000000000000000000000000000000000000000000000000",
+  "hdr": {
+    "src": "did:ubl:test:alice#key-1",
+    "dst": "did:ubl:test:bob",
+    "nonce": "11111111111111111111111111111111",
+    "ts": 1700000000001,
+    "act": "ASK",
+    "exp": 9223372036854775807
+  },
+  "env": {
+    "body": {
+      "v": "ubl-json/0.1.1",
+      "t": "record",
+      "agent": { "id": "did:ubl:test:alice", "name": "Alice" },
+      "intent": { "kind": "QUERY", "name": "demo_ask", "args": {} },
+      "ctx": {},
+      "decision": { "verdict": "ASK", "reason": "missing proof", "metrics": {} },
+      "evidence": { "cids": [], "urls": [] }
+    },
+    "links": { "prev": "b3:2222222222222222222222222222222222222222222222222222222222222222" },
+    "evidence": []
+  },
+  "seal": {
+    "kid": "did:ubl:test:alice#key-1",
+    "sig": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "scope": "capsule",
+    "aud": "did:ubl:test:bob"
+  },
+  "receipts": []
+}
+

@@ -88,6 +88,14 @@ enum CapAction {
         #[arg(long)]
         keyring: Option<PathBuf>,
     },
+    /// Capsule JSON → ai-nrf1 bytes (canonical) for signed vectors
+    ToNrf {
+        /// Input capsule JSON file (or - for stdin)
+        input: String,
+        /// Output NRF file (or - for stdout)
+        #[arg(short, long, default_value = "-")]
+        output: String,
+    },
     /// Receipt operations
     Receipt {
         #[command(subcommand)]
@@ -144,6 +152,7 @@ fn run(cli: Cli) -> Result<()> {
                 verify_chain,
                 keyring.as_deref(),
             ),
+            CapAction::ToNrf { input, output } => cmd_cap_to_nrf(&input, &output),
             CapAction::Receipt { action } => match action {
                 ReceiptAction::Add {
                     input,
@@ -232,6 +241,119 @@ fn cmd_verify(
         println!("OK: seal verified");
     }
     Ok(())
+}
+
+fn cmd_cap_to_nrf(input: &str, output: &str) -> Result<()> {
+    let json_str = read_input(input)?;
+    let capsule: ubl_capsule::Capsule =
+        serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
+    let bytes = capsule_to_nrf_bytes(&capsule)?;
+    write_output(output, &bytes)?;
+    Ok(())
+}
+
+fn capsule_to_nrf_bytes(c: &ubl_capsule::Capsule) -> Result<Vec<u8>> {
+    let v = capsule_to_nrf_value(c)?;
+    Ok(nrf_core::encode(&v))
+}
+
+fn capsule_to_nrf_value(c: &ubl_capsule::Capsule) -> Result<nrf_core::Value> {
+    use nrf_core::Value as V;
+    use std::collections::BTreeMap;
+
+    let mut root = BTreeMap::new();
+    root.insert("domain".into(), V::String(c.domain.clone()));
+    root.insert("id".into(), V::Bytes(c.id.to_vec()));
+
+    // hdr
+    let mut hdr = BTreeMap::new();
+    hdr.insert("src".into(), V::String(c.hdr.src.clone()));
+    if let Some(dst) = &c.hdr.dst {
+        hdr.insert("dst".into(), V::String(dst.clone()));
+    }
+    hdr.insert("nonce".into(), V::Bytes(c.hdr.nonce.to_vec()));
+    hdr.insert("ts".into(), V::Int(c.hdr.ts));
+    hdr.insert("act".into(), V::String(c.hdr.act.clone()));
+    if let Some(scope) = &c.hdr.scope {
+        hdr.insert("scope".into(), V::String(scope.clone()));
+    }
+    if let Some(exp) = c.hdr.exp {
+        hdr.insert("exp".into(), V::Int(exp));
+    }
+    root.insert("hdr".into(), V::Map(hdr));
+
+    // env
+    let mut env = BTreeMap::new();
+    env.insert("body".into(), json_to_nrf_value(&c.env.body)?);
+    if let Some(links) = &c.env.links {
+        let mut lm = BTreeMap::new();
+        if let Some(prev) = &links.prev {
+            lm.insert("prev".into(), V::String(prev.clone()));
+        }
+        env.insert("links".into(), V::Map(lm));
+    }
+    if !c.env.evidence.is_empty() {
+        env.insert(
+            "evidence".into(),
+            V::Array(c.env.evidence.iter().cloned().map(V::String).collect()),
+        );
+    }
+    root.insert("env".into(), V::Map(env));
+
+    // seal
+    let mut seal = BTreeMap::new();
+    seal.insert("kid".into(), V::String(c.seal.kid.clone()));
+    seal.insert("sig".into(), V::Bytes(c.seal.sig.to_vec()));
+    seal.insert("scope".into(), V::String(c.seal.scope.clone()));
+    if let Some(aud) = &c.seal.aud {
+        seal.insert("aud".into(), V::String(aud.clone()));
+    }
+    root.insert("seal".into(), V::Map(seal));
+
+    // receipts
+    let mut out = Vec::with_capacity(c.receipts.len());
+    for r in &c.receipts {
+        let mut rm = BTreeMap::new();
+        rm.insert("id".into(), V::Bytes(r.id.to_vec()));
+        rm.insert("of".into(), V::Bytes(r.of.to_vec()));
+        rm.insert("prev".into(), V::Bytes(r.prev.to_vec()));
+        rm.insert("kind".into(), V::String(r.kind.clone()));
+        rm.insert("node".into(), V::String(r.node.clone()));
+        rm.insert("ts".into(), V::Int(r.ts));
+        rm.insert("sig".into(), V::Bytes(r.sig.to_vec()));
+        out.push(V::Map(rm));
+    }
+    root.insert("receipts".into(), V::Array(out));
+
+    Ok(V::Map(root))
+}
+
+fn json_to_nrf_value(j: &serde_json::Value) -> Result<nrf_core::Value> {
+    use nrf_core::Value as V;
+    Ok(match j {
+        serde_json::Value::Null => V::Null,
+        serde_json::Value::Bool(b) => V::Bool(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                V::Int(i)
+            } else {
+                return Err(anyhow!("Err.Canon.FloatOrBigInt: numbers must fit i64"));
+            }
+        }
+        serde_json::Value::String(s) => V::String(s.clone()),
+        serde_json::Value::Array(a) => V::Array(
+            a.iter()
+                .map(json_to_nrf_value)
+                .collect::<Result<Vec<_>>>()?,
+        ),
+        serde_json::Value::Object(o) => {
+            let mut m = std::collections::BTreeMap::new();
+            for (k, v) in o {
+                m.insert(k.clone(), json_to_nrf_value(v)?);
+            }
+            V::Map(m)
+        }
+    })
 }
 
 fn cmd_receipt_add(
