@@ -38,6 +38,29 @@ jobs:
           --all-features
           --locked
 
+  python-differential:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: python-differential
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build CLI (nrf1)
+        run: cargo build -p nrf1-cli
+      - name: Install Python deps
+        run: python -m pip install -r tests/differential/requirements.txt
+      - name: Differential tests (Rust CLI vs Python ref)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/impl/python/nrf_core_ref
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/target/debug:${PATH}"
+          pytest -q tests/differential/test_diff_cli_vs_python.py
+
   fuzz-smoke:
     runs-on: ubuntu-latest
     steps:
@@ -70,3 +93,24 @@ jobs:
           -p ai-nrf1-wasm
           -p ubl-capsule-wasm
           --target wasm32-unknown-unknown
+
+  wasm-node-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-node-smoke
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+      - name: Build wasm-pack node packages
+        run: bash tools/wasm/build_node_pkgs.sh
+      - name: Node smoke (offline verify)
+        run: node tests/wasm/node_smoke.cjs
