@@ -1,0 +1,33 @@
+name: nightly-lab512
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC
+
+jobs:
+  nightly:
+    runs-on: [self-hosted, lab512]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (release)
+        run: |
+          cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
+
+      - name: Publish locally (nightly)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="${GITHUB_SHA}"
+          BASE_DIR="${LAB512_ARTIFACTS_DIR:-/opt/lab512/artifacts/nightly}"
+          OUT="${BASE_DIR}/${SHA}"
+          mkdir -p "${OUT}"
+
+          cp -f target/release/ai-nrf1 "${OUT}/ai-nrf1" || true
+          cp -f target/release/ubl "${OUT}/ubl" || true
+          cp -f target/release/nrf1 "${OUT}/nrf1" || true
+
+          ln -sfn "${OUT}" "${BASE_DIR}/latest"
+          echo "Published to ${OUT} (latest -> ${BASE_DIR}/latest)"
