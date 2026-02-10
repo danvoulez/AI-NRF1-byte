@@ -3,6 +3,33 @@ use serde::Serialize;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
+fn bytes_to_capsule(capsule_bytes: &[u8]) -> Result<ubl_capsule::Capsule, JsError> {
+    let v =
+        nrf_core::decode(capsule_bytes).map_err(|e| JsError::new(&format!("InvalidNrf: {e}")))?;
+    let json = nrf_value_to_json(&v);
+    serde_json::from_value(json).map_err(|e| JsError::new(&format!("InvalidCapsule: {e}")))
+}
+
+fn nrf_value_to_json(v: &nrf_core::Value) -> serde_json::Value {
+    match v {
+        nrf_core::Value::Null => serde_json::Value::Null,
+        nrf_core::Value::Bool(b) => serde_json::Value::Bool(*b),
+        nrf_core::Value::Int(i) => serde_json::Value::Number((*i).into()),
+        nrf_core::Value::String(s) => serde_json::Value::String(s.clone()),
+        nrf_core::Value::Bytes(b) => serde_json::Value::String(hex::encode(b)),
+        nrf_core::Value::Array(a) => {
+            serde_json::Value::Array(a.iter().map(nrf_value_to_json).collect())
+        }
+        nrf_core::Value::Map(m) => {
+            let mut o = serde_json::Map::new();
+            for (k, v) in m {
+                o.insert(k.clone(), nrf_value_to_json(v));
+            }
+            serde_json::Value::Object(o)
+        }
+    }
+}
+
 /// Verify a capsule's seal (domain/scope/aud/expiry/id + Ed25519 signature).
 ///
 /// Inputs:
@@ -28,6 +55,26 @@ pub fn js_verify_seal(
     let opts = ubl_capsule::seal::VerifyOpts { allowed_skew_ns };
     ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts)
         .map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Verify a capsule's seal from canonical capsule bytes (ai-nrf1 stream).
+///
+/// Inputs:
+/// - `capsuleBytes`: Uint8Array of ai-nrf1 bytes encoding the capsule map.
+/// - `pkBytes`: Uint8Array(32) Ed25519 public key.
+/// - `allowedSkewNs`: clock skew tolerance, nanoseconds.
+#[wasm_bindgen(js_name = "verifySealBytes")]
+pub fn js_verify_seal_bytes(
+    capsule_bytes: &[u8],
+    pk_bytes: Uint8Array,
+    allowed_skew_ns: i64,
+) -> Result<(), JsError> {
+    let capsule = bytes_to_capsule(capsule_bytes)?;
+    js_verify_seal(
+        serde_wasm_bindgen::to_value(&capsule)?,
+        pk_bytes,
+        allowed_skew_ns,
+    )
 }
 
 #[derive(Serialize)]
@@ -75,6 +122,16 @@ pub fn js_verify_receipts_chain(
         hops: capsule.receipts.len(),
     })
     .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
+}
+
+/// Verify the receipts chain from canonical capsule bytes (ai-nrf1 stream).
+#[wasm_bindgen(js_name = "verifyReceiptsChainBytes")]
+pub fn js_verify_receipts_chain_bytes(
+    capsule_bytes: &[u8],
+    keyring_hex: JsValue,
+) -> Result<JsValue, JsError> {
+    let capsule = bytes_to_capsule(capsule_bytes)?;
+    js_verify_receipts_chain(serde_wasm_bindgen::to_value(&capsule)?, keyring_hex)
 }
 
 #[wasm_bindgen(js_name = "version")]
