@@ -12,11 +12,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build (release)
+      - name: Skip if already latest
+        id: skip
+        shell: bash
         run: |
-          cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
+          set -euo pipefail
+          BASE_DIR="${LAB512_ARTIFACTS_DIR:-/opt/lab512/artifacts/nightly}"
+          LATEST="${BASE_DIR}/latest"
+          if [[ -L "${LATEST}" ]]; then
+            TARGET="$(readlink "${LATEST}" || true)"
+            if [[ "$(basename "${TARGET}")" == "${GITHUB_SHA}" ]]; then
+              echo "skip=true" >> "${GITHUB_OUTPUT}"
+              echo "Already published: ${GITHUB_SHA} (latest -> ${TARGET})"
+              exit 0
+            fi
+          fi
+          echo "skip=false" >> "${GITHUB_OUTPUT}"
+
+      - name: Check BASE (must be green)
+        if: steps.skip.outputs.skip != 'true'
+        run: make check-base
+
+      - name: Build (release)
+        if: steps.skip.outputs.skip != 'true'
+        run: cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
 
       - name: Publish locally (nightly)
+        if: steps.skip.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
