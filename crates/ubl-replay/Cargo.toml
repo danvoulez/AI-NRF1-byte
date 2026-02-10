@@ -6,6 +6,6 @@ license = "Apache-2.0"
 description = "Anti-replay cache (non-canonical): (hdr.src, hdr.nonce) LRU with TTL derived from hdr.exp"
 
 [dependencies]
-lru = "0.12"
+lru = "0.16"
 thiserror = "1"
 
