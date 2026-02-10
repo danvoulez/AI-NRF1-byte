@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # 1) Rust/Cargo — weekly, grouped; majors are ignored
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Lisbon"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - automerge
+    groups:
+      rust-minors:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # 2) GitHub Actions — monthly, grouped
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - automerge
+    groups:
+      gha:
+        patterns: ["*"]
+
