@@ -8,9 +8,6 @@ on:
         description: "Tag to create (e.g., v0.3.9)"
         required: false
         type: string
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   release:

@@ -1,4 +1,5 @@
 .PHONY: vectors vectors-keys vectors-gen vectors-sign vectors-verify
+.PHONY: check-base
 
 vectors: vectors-keys vectors-gen vectors-sign
 
@@ -14,3 +15,8 @@ vectors-sign:
 vectors-verify:
 	@bash tools/vectors/verify_vectors.sh
 
+check-base:
+	cargo fmt --all -- --check
+	cargo clippy -p nrf-core -p ai-nrf1 -p ubl_json_view -p ubl_capsule --all-targets --all-features -- -D warnings
+	cargo test --workspace --locked
+	make vectors-verify

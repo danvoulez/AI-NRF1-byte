@@ -26,10 +26,13 @@ mkdir -p "$DIST"
 syft dir:"$ROOT" -o cyclonedx-json > "$DIST/workspace.cdx.json"
 syft dir:"$ROOT" -o spdx-tag-value > "$DIST/workspace.spdx"
 
-# Target 2: CLI binary if present
-if [[ -f "$ROOT/tools/nrf1-cli/target/release/nrf1" ]]; then
-  syft file:"$ROOT/tools/nrf1-cli/target/release/nrf1" -o cyclonedx-json > "$DIST/nrf1.cdx.json" || true
-  syft file:"$ROOT/tools/nrf1-cli/target/release/nrf1" -o spdx-tag-value > "$DIST/nrf1.spdx" || true
-fi
+# Target 2: CLI binaries if present
+for bin in "$ROOT/target/release/ai-nrf1" "$ROOT/target/release/ubl" "$ROOT/target/release/nrf1"; do
+  if [[ -f "$bin" ]]; then
+    name="$(basename "$bin")"
+    syft file:"$bin" -o cyclonedx-json > "$DIST/${name}.cdx.json" || true
+    syft file:"$bin" -o spdx-tag-value > "$DIST/${name}.spdx" || true
+  fi
+done
 
 echo "SBOMs written to $DIST"

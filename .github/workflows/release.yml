@@ -3,34 +3,103 @@ name: release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-      - name: Build CLI (ainrf1)
-        run: |
-          cargo build --release -p ainrf1 || true
+
+      - name: Build (release)
+        run: cargo build --release -p ai-nrf1 -p ubl-cli -p nrf1-cli
+
       - name: Package artifacts
+        shell: bash
         run: |
-          mkdir -p dist
-          if [ -f target/release/ainrf1 ]; then
-            cp target/release/ainrf1 dist/ainrf1-linux-x86_64
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          OS="$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')"
+          ARCH="$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
+
+          mkdir -p dist/pkg
+
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            cp -f target/release/ai-nrf1.exe dist/pkg/ai-nrf1.exe
+            cp -f target/release/ubl.exe dist/pkg/ubl.exe
+            cp -f target/release/nrf1.exe dist/pkg/nrf1.exe
+            (cd dist/pkg && 7z a "../base-${TAG}-${OS}-${ARCH}.zip" ai-nrf1.exe ubl.exe nrf1.exe)
+          else
+            cp -f target/release/ai-nrf1 dist/pkg/ai-nrf1
+            cp -f target/release/ubl dist/pkg/ubl
+            cp -f target/release/nrf1 dist/pkg/nrf1
+            (cd dist/pkg && tar -czf "../base-${TAG}-${OS}-${ARCH}.tar.gz" ai-nrf1 ubl nrf1)
           fi
-          tar -czf dist/ai-nrf1-${{ github.ref_name }}-linux-x86_64.tar.gz -C dist ainrf1-linux-x86_64 || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-${{ runner.os }}-${{ runner.arch }}
+          path: dist/base-*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List dist/
+        run: ls -la dist
+
+      - name: Install syft (best-effort)
+        run: |
+          set -e
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin || true
+          syft version || true
+
+      - name: SBOM (best-effort)
+        run: bash scripts/sbom.sh --best-effort
+
+      - name: Checksums
+        run: bash scripts/make_checksums.sh
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign release assets (keyless)
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            cosign sign-blob --yes "$f" --output-signature "$f.sig"
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "${{ github.ref_name }}"
-          draft: true
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
           files: |
-            dist/*.tar.gz
+            dist/*
+            dist/sbom/*
             CHANGELOG.md
-          body_path: docs/RELEASE_DRAFT_v0.3.9.md
