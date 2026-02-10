@@ -139,6 +139,7 @@ fn expired_and_tampered_vectors_fail() {
     ));
     let opts = ubl_capsule::seal::VerifyOpts {
         allowed_skew_ns: i64::MAX,
+        now_ns: None,
     };
     ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts).expect("skew should accept");
 

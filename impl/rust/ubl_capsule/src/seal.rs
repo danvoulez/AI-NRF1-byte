@@ -56,6 +56,8 @@ impl SealError {
 pub struct VerifyOpts {
     /// Allowed clock skew in nanoseconds (default: 0).
     pub allowed_skew_ns: i64,
+    /// Override current time (epoch-nanos). When `None`, uses host time.
+    pub now_ns: Option<i64>,
 }
 
 /// Current time as epoch-nanoseconds (i64).
@@ -136,7 +138,7 @@ pub fn verify_with_opts(
 
         // Check expiration
         if let Some(exp) = c.hdr.exp {
-            let now = now_nanos_i64();
+            let now = opts.now_ns.unwrap_or_else(now_nanos_i64);
             if now.saturating_sub(opts.allowed_skew_ns) > exp {
                 return Err(SealError::Expired { exp, now });
             }
@@ -415,6 +417,7 @@ mod tests {
         assert!(verify(&c, &vk).is_err());
         let opts = VerifyOpts {
             allowed_skew_ns: 2_000_000_000,
+            now_ns: None,
         };
         assert!(verify_with_opts(&c, &vk, &opts).is_ok());
     }

@@ -229,7 +229,10 @@ fn cmd_verify(
     let capsule: ubl_capsule::Capsule =
         serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
     let pk = load_verifying_key(pk_path)?;
-    let opts = ubl_capsule::seal::VerifyOpts { allowed_skew_ns };
+    let opts = ubl_capsule::seal::VerifyOpts {
+        allowed_skew_ns,
+        now_ns: None,
+    };
     ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts).map_err(|e| anyhow!("{e}"))?;
 
     if verify_chain {

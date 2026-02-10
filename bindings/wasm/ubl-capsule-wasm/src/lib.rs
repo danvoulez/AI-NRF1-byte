@@ -3,6 +3,30 @@ use serde::Serialize;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
+fn js_now_nanos_i64() -> i64 {
+    // Date.now() returns epoch-millis as f64.
+    let ms = js_sys::Date::now();
+    let ns = ms * 1_000_000.0;
+    if !ns.is_finite() || ns <= 0.0 {
+        return i64::MAX;
+    }
+    // Clamp to i64.
+    if ns >= i64::MAX as f64 {
+        i64::MAX
+    } else {
+        ns as i64
+    }
+}
+
+fn pk_from_uint8array(pk_bytes: Uint8Array) -> Result<ed25519_dalek::VerifyingKey, JsError> {
+    let pk_vec = pk_bytes.to_vec();
+    let pk_arr: [u8; 32] = pk_vec
+        .try_into()
+        .map_err(|_| JsError::new("InvalidPublicKey: expected 32 bytes"))?;
+    ed25519_dalek::VerifyingKey::from_bytes(&pk_arr)
+        .map_err(|_| JsError::new("InvalidPublicKey: decode failed"))
+}
+
 fn bytes_to_capsule(capsule_bytes: &[u8]) -> Result<ubl_capsule::Capsule, JsError> {
     let v =
         nrf_core::decode(capsule_bytes).map_err(|e| JsError::new(&format!("InvalidNrf: {e}")))?;
@@ -45,14 +69,12 @@ pub fn js_verify_seal(
     let capsule: ubl_capsule::Capsule = serde_wasm_bindgen::from_value(capsule)
         .map_err(|e| JsError::new(&format!("InvalidCapsule: {e}")))?;
 
-    let pk_vec = pk_bytes.to_vec();
-    let pk_arr: [u8; 32] = pk_vec
-        .try_into()
-        .map_err(|_| JsError::new("InvalidPublicKey: expected 32 bytes"))?;
-    let pk = ed25519_dalek::VerifyingKey::from_bytes(&pk_arr)
-        .map_err(|_| JsError::new("InvalidPublicKey: decode failed"))?;
+    let pk = pk_from_uint8array(pk_bytes)?;
 
-    let opts = ubl_capsule::seal::VerifyOpts { allowed_skew_ns };
+    let opts = ubl_capsule::seal::VerifyOpts {
+        allowed_skew_ns,
+        now_ns: Some(js_now_nanos_i64()),
+    };
     ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts)
         .map_err(|e| JsError::new(&e.to_string()))
 }
@@ -70,17 +92,45 @@ pub fn js_verify_seal_bytes(
     allowed_skew_ns: i64,
 ) -> Result<(), JsError> {
     let capsule = bytes_to_capsule(capsule_bytes)?;
-    js_verify_seal(
-        serde_wasm_bindgen::to_value(&capsule)?,
-        pk_bytes,
+    let pk = pk_from_uint8array(pk_bytes)?;
+    let opts = ubl_capsule::seal::VerifyOpts {
         allowed_skew_ns,
-    )
+        now_ns: Some(js_now_nanos_i64()),
+    };
+    ubl_capsule::seal::verify_with_opts(&capsule, &pk, &opts)
+        .map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[derive(Serialize)]
 struct ChainReport {
     ok: bool,
     hops: usize,
+}
+
+fn verify_receipts_chain_capsule(
+    capsule: &ubl_capsule::Capsule,
+    keyring_hex: HashMap<String, String>,
+) -> Result<ChainReport, JsError> {
+    let mut pks: HashMap<String, ed25519_dalek::VerifyingKey> = HashMap::new();
+    for (node, hex_pk) in keyring_hex {
+        let bytes =
+            hex::decode(hex_pk.trim()).map_err(|_| JsError::new("InvalidKeyring: bad hex"))?;
+        let pk_arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| JsError::new("InvalidKeyring: pk must be 32 bytes"))?;
+        let pk = ed25519_dalek::VerifyingKey::from_bytes(&pk_arr)
+            .map_err(|_| JsError::new("InvalidKeyring: pk decode failed"))?;
+        pks.insert(node, pk);
+    }
+
+    let resolve = |node: &str| -> Option<ed25519_dalek::VerifyingKey> { pks.get(node).copied() };
+    ubl_capsule::receipt::verify_chain(&capsule.id, &capsule.receipts, &resolve)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    Ok(ChainReport {
+        ok: true,
+        hops: capsule.receipts.len(),
+    })
 }
 
 /// Verify the receipts chain for a capsule.
@@ -101,27 +151,8 @@ pub fn js_verify_receipts_chain(
     let keyring: HashMap<String, String> = serde_wasm_bindgen::from_value(keyring_hex)
         .map_err(|e| JsError::new(&format!("InvalidKeyring: {e}")))?;
 
-    let mut pks: HashMap<String, ed25519_dalek::VerifyingKey> = HashMap::new();
-    for (node, hex_pk) in keyring {
-        let bytes =
-            hex::decode(hex_pk.trim()).map_err(|_| JsError::new("InvalidKeyring: bad hex"))?;
-        let pk_arr: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| JsError::new("InvalidKeyring: pk must be 32 bytes"))?;
-        let pk = ed25519_dalek::VerifyingKey::from_bytes(&pk_arr)
-            .map_err(|_| JsError::new("InvalidKeyring: pk decode failed"))?;
-        pks.insert(node, pk);
-    }
-
-    let resolve = |node: &str| -> Option<ed25519_dalek::VerifyingKey> { pks.get(node).copied() };
-    ubl_capsule::receipt::verify_chain(&capsule.id, &capsule.receipts, &resolve)
-        .map_err(|e| JsError::new(&e.to_string()))?;
-
-    serde_wasm_bindgen::to_value(&ChainReport {
-        ok: true,
-        hops: capsule.receipts.len(),
-    })
-    .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
+    serde_wasm_bindgen::to_value(&verify_receipts_chain_capsule(&capsule, keyring)?)
+        .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
 }
 
 /// Verify the receipts chain from canonical capsule bytes (ai-nrf1 stream).
@@ -131,7 +162,10 @@ pub fn js_verify_receipts_chain_bytes(
     keyring_hex: JsValue,
 ) -> Result<JsValue, JsError> {
     let capsule = bytes_to_capsule(capsule_bytes)?;
-    js_verify_receipts_chain(serde_wasm_bindgen::to_value(&capsule)?, keyring_hex)
+    let keyring: HashMap<String, String> = serde_wasm_bindgen::from_value(keyring_hex)
+        .map_err(|e| JsError::new(&format!("InvalidKeyring: {e}")))?;
+    serde_wasm_bindgen::to_value(&verify_receipts_chain_capsule(&capsule, keyring)?)
+        .map_err(|e| JsError::new(&format!("SerializeError: {e}")))
 }
 
 #[wasm_bindgen(js_name = "version")]
