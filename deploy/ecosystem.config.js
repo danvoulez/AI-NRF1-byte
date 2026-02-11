@@ -85,7 +85,7 @@ module.exports = {
     {
       name: "cloudflared",
       script: "cloudflared",
-      args: "tunnel run ai-nrf1",
+      args: "tunnel --config " + path.join(ROOT, "ops/cloudflare/cloudflared.config.yml") + " run ai-nrf1",
       interpreter: "none",
       autorestart: true,
       max_restarts: 5,

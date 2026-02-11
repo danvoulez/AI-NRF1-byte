@@ -38,6 +38,35 @@ jobs:
           --all-features
           --locked
 
+  modules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: modules
+      - name: clippy (modules)
+        run: >
+          cargo clippy
+          -p modules-core
+          -p module-runner
+          -p cap-intake
+          -p cap-policy
+          -p cap-permit
+          -p cap-enrich
+          -p cap-transport
+          -p cap-llm
+          --all-targets
+          -- -D warnings
+      - name: test (module-runner — 42 tests)
+        run: cargo test -p module-runner --locked
+      - name: build registry with modules
+        run: cargo build -p registry --features modules --locked
+
   python-differential:
     runs-on: ubuntu-latest
     steps:
