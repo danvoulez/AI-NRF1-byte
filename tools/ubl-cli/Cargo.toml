@@ -14,6 +14,7 @@ nrf-core = { path = "../../impl/rust/nrf-core" }
 ubl_json_view = { path = "../../impl/rust/ubl_json_view" }
 ubl_capsule = { path = "../../impl/rust/ubl_capsule" }
 clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hex = "0.4"
 ed25519-dalek = { version = "2", features = ["rand_core", "pkcs8", "pem"] }
@@ -21,3 +22,14 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 blake3 = "1"
 anyhow = "1"
 module-runner = { path = "../../crates/module-runner" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[features]
+default = ["provider-registry"]
+provider-openai = []
+provider-ollama = []
+provider-registry = []
+
+[dev-dependencies]
+assert_cmd = "2"

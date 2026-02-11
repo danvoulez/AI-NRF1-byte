@@ -49,7 +49,6 @@ members = [
   "impl/rust/ubl_capsule",
 
   # CLI / Tools
-  "cli/nrf1",
   "tools/ubl-cli",
 
   # Conformance tests

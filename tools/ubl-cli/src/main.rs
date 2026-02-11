@@ -8,12 +8,20 @@
 //!   ubl cap verify     <in.(json|nrf)> --pk <file>
 //!   ubl cap receipt add <in> --kind <relay|exec|deliver> --node <did#key> --sk <file> -o <out>
 //!   ubl keygen          -o <prefix>
+//!   ubl llm complete    --input <file> [--provider openai|ollama|registry] [--model ...]
+//!   ubl llm judge       --answer <file> --criteria <file> [--provider ...]
+//!   ubl pricing price   --input <file>
+//!   ubl pricing quote   --input <file>
+//!   ubl pricing invoice --input <file>
 
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::{collections::HashMap, path::Path};
+
+mod llm;
+mod pricing;
 
 #[derive(Parser)]
 #[command(name = "ubl", version, about = "UBL Capsule CLI")]
@@ -43,6 +51,34 @@ enum Commands {
         #[arg(long, default_value = "~/.ai-nrf1/state")]
         state_dir: String,
     },
+    /// LLM utilities (complete/judge) via registry | openai | ollama
+    Llm {
+        #[command(subcommand)]
+        cmd: LlmCmd,
+    },
+    /// Pricing helpers via registry modules
+    Pricing {
+        #[command(subcommand)]
+        cmd: PricingCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum LlmCmd {
+    /// Run a completion
+    Complete(llm::CompleteArgs),
+    /// Judge an answer against criteria (local heuristic or via LLM)
+    Judge(llm::JudgeArgs),
+}
+
+#[derive(Subcommand)]
+enum PricingCmd {
+    /// Price a single SKU
+    Price(pricing::PriceArgs),
+    /// Create a quote from pricing
+    Quote(pricing::QuoteArgs),
+    /// Create an invoice from a quote
+    Invoice(pricing::InvoiceArgs),
 }
 
 #[derive(Subcommand)]
@@ -135,15 +171,16 @@ enum ReceiptAction {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
-    if let Err(e) = run(cli) {
+    if let Err(e) = run(cli).await {
         eprintln!("Error: {e}");
         std::process::exit(1);
     }
 }
 
-fn run(cli: Cli) -> Result<()> {
+async fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Cap { action } => match action {
             CapAction::FromJson { input, output } => cmd_from_json(&input, &output),
@@ -193,6 +230,15 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
+        Commands::Llm { cmd } => match cmd {
+            LlmCmd::Complete(a) => llm::llm_complete(a).await,
+            LlmCmd::Judge(a) => llm::llm_judge(a).await,
+        },
+        Commands::Pricing { cmd } => match cmd {
+            PricingCmd::Price(a) => pricing::price(a).await,
+            PricingCmd::Quote(a) => pricing::quote(a).await,
+            PricingCmd::Invoice(a) => pricing::invoice(a).await,
+        },
     }
 }
 
