@@ -3,6 +3,8 @@
 
 # AI-NRF1 Rust Stack — UBL → App → Tenant → User
 
+> **MODULES (experimental):** In v1.0, modules are behind `--features modules`. The modules API/ABI may change before v2.0.
+
 100% Rust. Sem TypeScript. Core em crates independentes + serviço Axum + CLI.
 
 ## Layout
