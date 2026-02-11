@@ -13,9 +13,28 @@ struct Health {
     modules: bool,
 }
 
+#[derive(Serialize)]
+struct Version {
+    version: &'static str,
+    git_sha: &'static str,
+    build_ts: &'static str,
+    #[cfg(feature = "modules")]
+    modules: bool,
+}
+
 async fn health() -> Json<Health> {
     Json(Health {
         status: "ok",
+        #[cfg(feature = "modules")]
+        modules: true,
+    })
+}
+
+async fn version() -> Json<Version> {
+    Json(Version {
+        version: env!("CARGO_PKG_VERSION"),
+        git_sha: option_env!("BUILD_GIT_SHA").unwrap_or("dev"),
+        build_ts: option_env!("BUILD_TIMESTAMP").unwrap_or("unknown"),
         #[cfg(feature = "modules")]
         modules: true,
     })
@@ -28,6 +47,7 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
         .route("/health", get(health))
         .route("/healthz", get(health))
         .route("/readyz", get(health))
+        .route("/version", get(version))
         .nest("/v1", routes::receipts::router())
         .nest("/v1", routes::ghosts::router())
         .with_state(state);

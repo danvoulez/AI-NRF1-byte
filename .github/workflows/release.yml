@@ -21,6 +21,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build (release)
+        env:
+          BUILD_GIT_SHA: ${{ github.sha }}
+          BUILD_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
         run: cargo build --release -p ai-nrf1 -p ubl-cli -p registry
 
       - name: Package artifacts
