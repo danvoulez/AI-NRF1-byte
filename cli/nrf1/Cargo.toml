@@ -5,7 +5,7 @@ version = "0.3.9"
 edition = "2021"
 
 [[bin]]
-name = "nrf1"
+name = "ai-nrf1"
 path = "src/main.rs"
 
 [dependencies]
