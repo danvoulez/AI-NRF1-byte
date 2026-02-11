@@ -1,0 +1,25 @@
+providers:
+  openai:
+    enabled: true
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    models:
+      - "gpt-4o-mini"
+      - "gpt-4o"
+    pricing_per_1k:
+      input_usd: 0.0005
+      output_usd: 0.0015
+  ollama:
+    enabled: true
+    base_url: "http://127.0.0.1:11434"
+    models:
+      - "llama3.1:8b"
+      - "qwen2.5:7b"
+    pricing_per_1k:
+      input_usd: 0.0
+      output_usd: 0.0
+
+defaults:
+  model: "gpt-4o-mini"
+  max_tokens: 800
+  temperature: 0.2

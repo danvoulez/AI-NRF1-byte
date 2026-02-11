@@ -31,7 +31,8 @@ ubl-storage = { path = "../../crates/ubl-storage" }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # --- MODULES feature: compiles cap modules + runner into the same binary ---
-module-runner = { path = "../../crates/module-runner", features = ["server"], optional = true }
+module-runner = { path = "../../crates/module-runner", features = ["server", "live"], optional = true }
+serde_yaml = { version = "0.9", optional = true }
 modules-core = { path = "../../crates/modules-core", optional = true }
 cap-intake = { path = "../../modules/cap-intake", optional = true }
 cap-policy = { path = "../../modules/cap-policy", optional = true }
@@ -48,6 +49,7 @@ default = []
 modules = [
   "module-runner",
   "modules-core",
+  "serde_yaml",
   "cap-intake",
   "cap-policy",
   "cap-permit",

@@ -310,19 +310,42 @@ async fn transport_derive_handler(Json(req): Json<TransportDeriveReq>) -> impl I
 }
 
 // ---------------------------------------------------------------------------
-// POST /v1/llm/complete
+// POST /v1/llm/complete  (direct provider call OR Capability-based)
+//
+// If `prompt` is present → direct provider call (OpenAI/Ollama).
+// If `env` + `config` are present → Capability-based (cap-llm module).
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
 struct LlmCompleteReq {
+    // --- Direct provider mode ---
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    max_tokens: Option<u32>,
+    #[serde(default)]
+    temperature: Option<f32>,
+    #[serde(default)]
+    json_mode: bool,
+    // --- Capability mode (legacy) ---
+    #[serde(default)]
     env: Value,
+    #[serde(default)]
     config: Value,
     #[serde(default)]
     tenant: Option<String>,
 }
 
 async fn llm_complete_handler(Json(req): Json<LlmCompleteReq>) -> impl IntoResponse {
-    let input = match cap_input(&req.env, req.config, req.tenant.as_deref()) {
+    // Direct provider mode: if `prompt` is present, call the LLM provider directly.
+    if let Some(prompt) = &req.prompt {
+        return llm_direct_call(prompt, &req).await;
+    }
+
+    // Capability mode: delegate to cap-llm module.
+    let input = match cap_input(&req.env, req.config.clone(), req.tenant.as_deref()) {
         Ok(i) => i,
         Err(s) => return (s, Json(json!({"error": "invalid env"}))).into_response(),
     };
@@ -332,6 +355,129 @@ async fn llm_complete_handler(Json(req): Json<LlmCompleteReq>) -> impl IntoRespo
         Ok(out) => (StatusCode::OK, Json(cap_output_json(&out))).into_response(),
         Err(e) => (
             StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({"error": format!("{e}")})),
+        )
+            .into_response(),
+    }
+}
+
+async fn llm_direct_call(prompt: &str, req: &LlmCompleteReq) -> axum::response::Response {
+    use module_runner::adapters::llm::*;
+
+    // Load provider config
+    let cfg_path = std::env::var("LLM_PROVIDERS_PATH")
+        .unwrap_or_else(|_| "configs/llm/providers.yaml".into());
+    let cfg: ProvidersCfg = match std::fs::read_to_string(&cfg_path)
+        .map_err(anyhow::Error::from)
+        .and_then(|s| serde_yaml::from_str(&s).map_err(anyhow::Error::from))
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("llm config: {e}")})),
+            )
+                .into_response();
+        }
+    };
+
+    let model = req.model.as_deref().unwrap_or(&cfg.defaults.model);
+    let max_tokens = req.max_tokens.unwrap_or(cfg.defaults.max_tokens.unwrap_or(800));
+    let temperature = req.temperature.or(cfg.defaults.temperature);
+
+    // Determine which provider to use based on model name
+    let is_ollama_model = cfg
+        .providers
+        .ollama
+        .as_ref()
+        .filter(|o| o.enabled)
+        .map(|o| o.models.iter().any(|m| m == model))
+        .unwrap_or(false);
+
+    let result = if is_ollama_model {
+        let oc = match cfg.providers.ollama.as_ref().filter(|c| c.enabled) {
+            Some(c) => c,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "ollama provider not enabled"})),
+                )
+                    .into_response();
+            }
+        };
+        #[cfg(feature = "modules")]
+        {
+            let provider = ollama::OllamaProvider::new(
+                oc.base_url.clone(),
+                oc.pricing_per_1k.input_usd,
+                oc.pricing_per_1k.output_usd,
+            );
+            provider
+                .invoke_ext(model, prompt, max_tokens, temperature, req.json_mode)
+                .await
+        }
+        #[cfg(not(feature = "modules"))]
+        {
+            let _ = oc;
+            Err(anyhow::anyhow!("live providers require modules feature"))
+        }
+    } else {
+        let oc = match cfg.providers.openai.as_ref().filter(|c| c.enabled) {
+            Some(c) => c,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "openai provider not enabled"})),
+                )
+                    .into_response();
+            }
+        };
+        #[cfg(feature = "modules")]
+        {
+            let api_key = match std::env::var(&oc.api_key_env) {
+                Ok(k) => k,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": format!("env {} not set", oc.api_key_env)})),
+                    )
+                        .into_response();
+                }
+            };
+            let provider = openai::OpenAiProvider::new(
+                oc.base_url.clone(),
+                api_key,
+                oc.pricing_per_1k.input_usd,
+                oc.pricing_per_1k.output_usd,
+            );
+            provider
+                .invoke_ext(model, prompt, max_tokens, temperature, req.json_mode)
+                .await
+        }
+        #[cfg(not(feature = "modules"))]
+        {
+            let _ = oc;
+            Err(anyhow::anyhow!("live providers require modules feature"))
+        }
+    };
+
+    match result {
+        Ok(out) => (
+            StatusCode::OK,
+            Json(json!({
+                "text": out.text,
+                "model": model,
+                "tokens_in": out.tokens_in,
+                "tokens_out": out.tokens_out,
+                "tokens_used": out.tokens_used,
+                "cost_usd": out.cost_usd,
+                "finish_reason": out.finish_reason,
+                "cached": out.cached,
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
             Json(json!({"error": format!("{e}")})),
         )
             .into_response(),

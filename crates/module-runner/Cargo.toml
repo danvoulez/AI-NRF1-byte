@@ -12,6 +12,7 @@ nrf-core = { path = "../../impl/rust/nrf-core" }
 ubl_capsule = { path = "../../impl/rust/ubl_capsule" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 anyhow = "1"
 blake3 = "1"
 async-trait = "0.1"
