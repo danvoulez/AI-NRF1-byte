@@ -28,16 +28,6 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 ubl-storage = { path = "../../crates/ubl-storage" }
 
-# MODULES (optional, gated by features)
-receipt-gateway = { path = "../../modules/receipt-gateway", optional = true }
-ledger-ndjson = { path = "../../modules/ledger-ndjson", optional = true }
-
-[features]
-default = ["all-modules"]
-all-modules = ["module-receipt-gateway", "module-ledger-ndjson"]
-module-receipt-gateway = ["dep:receipt-gateway"]
-module-ledger-ndjson = ["dep:ledger-ndjson"]
-
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }

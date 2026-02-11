@@ -1,0 +1,119 @@
+//! cap-policy: evaluate rules DSL and produce verdict (ALLOW/DENY/REQUIRE).
+//! See design doc §9B: "cap-policy (Decide)".
+
+use anyhow::Context;
+use modules_core::{CapInput, CapOutput, Capability, Verdict};
+use serde::Deserialize;
+use serde_json::Value;
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+enum Rule {
+    Exist { paths: Vec<String> },
+    Threshold { path: String, min: i64 },
+    ThresholdRange { path: String, min: i64, max: i64 },
+    Allowlist { path: String, values: Vec<Value> },
+    Not { rule: Box<Rule> },
+}
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    #[serde(default)]
+    rules: Vec<Rule>,
+    #[serde(default)]
+    decision_on_fail: Option<String>,
+}
+
+#[derive(Default)]
+pub struct PolicyModule;
+
+impl PolicyModule {
+    fn get<'a>(root: &'a Value, path: &str) -> Option<&'a Value> {
+        let mut cur = root;
+        for seg in path.split('.') {
+            match cur {
+                Value::Object(m) => {
+                    cur = m.get(seg)?;
+                }
+                Value::Array(a) => {
+                    cur = a.get(seg.parse::<usize>().ok()?)?;
+                }
+                _ => return None,
+            }
+        }
+        Some(cur)
+    }
+
+    fn as_i64(v: &Value) -> Option<i64> {
+        match v {
+            Value::Number(n) => n.as_i64(),
+            Value::String(s) => s.parse::<i64>().ok(),
+            _ => None,
+        }
+    }
+
+    fn rule_ok(j: &Value, r: &Rule) -> bool {
+        match r {
+            Rule::Exist { paths } => paths
+                .iter()
+                .all(|p| matches!(Self::get(j, p), Some(v) if !v.is_null())),
+            Rule::Threshold { path, min } => Self::get(j, path)
+                .and_then(Self::as_i64)
+                .map(|v| v >= *min)
+                .unwrap_or(false),
+            Rule::ThresholdRange { path, min, max } => Self::get(j, path)
+                .and_then(Self::as_i64)
+                .map(|v| v >= *min && v <= *max)
+                .unwrap_or(false),
+            Rule::Allowlist { path, values } => match Self::get(j, path) {
+                Some(v) => values.iter().any(|x| x == v),
+                None => false,
+            },
+            Rule::Not { rule } => !Self::rule_ok(j, rule),
+        }
+    }
+}
+
+impl Capability for PolicyModule {
+    fn kind(&self) -> &'static str {
+        "cap-policy"
+    }
+    fn api_version(&self) -> &'static str {
+        "1.2.0"
+    }
+
+    fn validate_config(&self, config: &Value) -> anyhow::Result<()> {
+        let _cfg: Config =
+            serde_json::from_value(config.clone()).context("invalid cap-policy config")?;
+        Ok(())
+    }
+
+    fn execute(&self, input: CapInput) -> anyhow::Result<CapOutput> {
+        let j = ubl_json_view::to_json(&input.env);
+        let cfg: Config = serde_json::from_value(input.config.clone())?;
+
+        let fail_verdict = match cfg.decision_on_fail.as_deref() {
+            Some("REQUIRE") => Verdict::Require,
+            _ => Verdict::Deny,
+        };
+
+        let mut failed = 0usize;
+        for r in &cfg.rules {
+            if !Self::rule_ok(&j, r) {
+                failed += 1;
+            }
+        }
+
+        let verdict = if failed == 0 {
+            Verdict::Allow
+        } else {
+            fail_verdict
+        };
+
+        Ok(CapOutput {
+            verdict: Some(verdict),
+            metrics: vec![("rules_failed".into(), failed as i64)],
+            ..Default::default()
+        })
+    }
+}

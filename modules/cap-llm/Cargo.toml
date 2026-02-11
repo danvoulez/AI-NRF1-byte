@@ -1,0 +1,16 @@
+[package]
+name = "cap-llm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "cap-llm: deterministic LLM assist — prompt-by-CID, never verdict"
+
+[dependencies]
+modules-core = { path = "../../crates/modules-core" }
+nrf1 = { path = "../../crates/nrf1" }
+ubl_json_view = { path = "../../impl/rust/ubl_json_view" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+blake3 = "1"
+hex = "0.4"

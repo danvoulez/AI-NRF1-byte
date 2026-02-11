@@ -35,6 +35,14 @@ enum Commands {
         #[arg(short, long, default_value = "key")]
         output: String,
     },
+    /// Consent permit operations
+    Permit {
+        #[command(subcommand)]
+        action: PermitAction,
+        /// State directory (default: ~/.ai-nrf1/state)
+        #[arg(long, default_value = "~/.ai-nrf1/state")]
+        state_dir: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -168,6 +176,23 @@ fn run(cli: Cli) -> Result<()> {
             },
         },
         Commands::Keygen { output } => cmd_keygen(&output),
+        Commands::Permit { action, state_dir } => {
+            let expanded = expand_tilde(&state_dir);
+            match action {
+                PermitAction::Approve { tenant, ticket, role, sig } => {
+                    cmd_permit_approve(&expanded, &tenant, &ticket, &role, sig.as_deref())
+                }
+                PermitAction::Deny { tenant, ticket, role } => {
+                    cmd_permit_deny(&expanded, &tenant, &ticket, &role)
+                }
+                PermitAction::List { tenant, status } => {
+                    cmd_permit_list(&expanded, &tenant, status.as_deref())
+                }
+                PermitAction::Expire { tenant } => {
+                    cmd_permit_expire(&expanded, &tenant)
+                }
+            }
+        }
     }
 }
 
@@ -363,6 +388,52 @@ fn json_to_nrf_value(j: &serde_json::Value) -> Result<nrf_core::Value> {
     })
 }
 
+#[derive(Subcommand)]
+enum PermitAction {
+    /// Approve a consent ticket
+    Approve {
+        /// Tenant ID
+        #[arg(long)]
+        tenant: String,
+        /// Ticket ID
+        #[arg(long)]
+        ticket: String,
+        /// Approver role
+        #[arg(long)]
+        role: String,
+        /// Optional hex signature
+        #[arg(long)]
+        sig: Option<String>,
+    },
+    /// Deny a consent ticket
+    Deny {
+        /// Tenant ID
+        #[arg(long)]
+        tenant: String,
+        /// Ticket ID
+        #[arg(long)]
+        ticket: String,
+        /// Denier role
+        #[arg(long)]
+        role: String,
+    },
+    /// List tickets for a tenant
+    List {
+        /// Tenant ID
+        #[arg(long)]
+        tenant: String,
+        /// Filter by status: PENDING, ALLOW, DENY, EXPIRED
+        #[arg(long)]
+        status: Option<String>,
+    },
+    /// Expire stale tickets for a tenant
+    Expire {
+        /// Tenant ID
+        #[arg(long)]
+        tenant: String,
+    },
+}
+
 fn cmd_receipt_add(
     input: &str,
     kind: &str,
@@ -482,4 +553,122 @@ fn load_verifying_key(path: &PathBuf) -> Result<ed25519_dalek::VerifyingKey> {
         .try_into()
         .map_err(|_| anyhow!("Err.Key.BadLength: expected 32 bytes (64 hex chars)"))?;
     ed25519_dalek::VerifyingKey::from_bytes(&arr).context("Err.Key.InvalidPublicKey")
+}
+
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return format!("{}/{}", home.to_string_lossy(), &path[2..]);
+        }
+    }
+    path.to_string()
+}
+
+// ---------------------------------------------------------------------------
+// Permit commands
+// ---------------------------------------------------------------------------
+
+fn cmd_permit_approve(
+    state_dir: &str,
+    tenant: &str,
+    ticket_id: &str,
+    role: &str,
+    sig_hex: Option<&str>,
+) -> Result<()> {
+    use module_runner::adapters::permit::{PermitOutcome, PermitStore};
+
+    let store = PermitStore::new(state_dir);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos() as i64;
+
+    match store.approve(tenant, ticket_id, role, now, sig_hex.map(String::from))? {
+        PermitOutcome::Pending { approvals, needed } => {
+            println!("PENDING: {approvals}/{needed} approvals");
+        }
+        PermitOutcome::Closed(status) => {
+            println!("CLOSED: {status:?}");
+        }
+        PermitOutcome::Rejected(reason) => {
+            eprintln!("REJECTED: {reason}");
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_permit_deny(state_dir: &str, tenant: &str, ticket_id: &str, role: &str) -> Result<()> {
+    use module_runner::adapters::permit::{PermitOutcome, PermitStore};
+
+    let store = PermitStore::new(state_dir);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos() as i64;
+
+    match store.deny(tenant, ticket_id, role, now)? {
+        PermitOutcome::Closed(status) => {
+            println!("CLOSED: {status:?}");
+        }
+        PermitOutcome::Rejected(reason) => {
+            eprintln!("REJECTED: {reason}");
+            std::process::exit(1);
+        }
+        other => {
+            println!("{other:?}");
+        }
+    }
+    Ok(())
+}
+
+fn cmd_permit_list(state_dir: &str, tenant: &str, status_filter: Option<&str>) -> Result<()> {
+    use module_runner::adapters::permit::{PermitStore, TicketStatus};
+
+    let store = PermitStore::new(state_dir);
+    let filter = status_filter.and_then(|s| match s.to_uppercase().as_str() {
+        "PENDING" => Some(TicketStatus::Pending),
+        "ALLOW" => Some(TicketStatus::Allow),
+        "DENY" => Some(TicketStatus::Deny),
+        "EXPIRED" => Some(TicketStatus::Expired),
+        _ => None,
+    });
+
+    let tickets = store.list(tenant, filter.as_ref())?;
+    if tickets.is_empty() {
+        println!("No tickets found.");
+        return Ok(());
+    }
+
+    for t in &tickets {
+        println!(
+            "{} | {:?} | k={}/{} | approvals={} | expires={}",
+            t.ticket_id,
+            t.status,
+            t.approvals.len(),
+            t.k,
+            t.approvals.iter().map(|a| a.role.as_str()).collect::<Vec<_>>().join(","),
+            t.expires_at,
+        );
+    }
+    println!("\n{} ticket(s) total.", tickets.len());
+    Ok(())
+}
+
+fn cmd_permit_expire(state_dir: &str, tenant: &str) -> Result<()> {
+    use module_runner::adapters::permit::PermitStore;
+
+    let store = PermitStore::new(state_dir);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos() as i64;
+
+    let expired = store.expire_stale(tenant, now)?;
+    if expired.is_empty() {
+        println!("No stale tickets.");
+    } else {
+        for id in &expired {
+            println!("EXPIRED: {id}");
+        }
+        println!("{} ticket(s) expired.", expired.len());
+    }
+    Ok(())
 }

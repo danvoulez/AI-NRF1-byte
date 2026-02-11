@@ -1,0 +1,36 @@
+name: Reviewer (comentários no PR)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  reviewer:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: reviewer-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      REVIEWER_CMD: ${{ vars.REVIEWER_CMD }}
+      REQUIRED_FN_PREFIX: ${{ vars.REQUIRED_FN_PREFIX || 'bill_' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Rodar reviewer
+        run: |
+          if [ -n "${REVIEWER_CMD}" ]; then
+            bash -lc "$REVIEWER_CMD" | tee review_report.md || true
+          else
+            python3 scripts/review_diff.py > review_report.md || true
+          fi
+      - name: Comentar no PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          body="$(cat review_report.md || echo 'Sem relatório')"
+          gh pr comment "$GITHUB_REF_NAME" -F review_report.md --create-if-none || gh pr comment ${{ github.event.pull_request.html_url }} -F review_report.md --create-if-none || true

@@ -1,0 +1,7 @@
+rules:
+  - id: enforce-naming-prefix
+    patterns:
+      - pattern: def $FUNC(...):
+    message: "Função deve iniciar com prefixo definido no blueprint (ex.: bill_)"
+    severity: WARNING
+    languages: [python]

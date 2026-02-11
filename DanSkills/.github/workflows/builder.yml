@@ -1,0 +1,14 @@
+name: Builder (informativo)
+on:
+  workflow_dispatch:
+  issues:
+    types: [labeled]
+
+jobs:
+  builder-hint:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'issues' && contains(github.event.label.name, 'builder:ready'))
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "⚠️  Este repo usa Builder local (terminal) com semáforo."
+          echo "Configure .env e rode ./agents/builder.sh (ordem: ${AGENT_ORDER:-BUILDER,SENTINEL,REVIEWER})."

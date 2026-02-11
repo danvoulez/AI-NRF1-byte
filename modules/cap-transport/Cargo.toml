@@ -1,0 +1,15 @@
+[package]
+name = "cap-transport"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "cap-transport: SIRP hop receipts, nonce/exp validation, relay out"
+
+[dependencies]
+modules-core = { path = "../../crates/modules-core" }
+nrf1 = { path = "../../crates/nrf1" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+blake3 = "1"
+hex = "0.4"

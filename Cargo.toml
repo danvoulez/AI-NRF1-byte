@@ -8,6 +8,18 @@ members = [
   "crates/nrf1",
   "impl/rust/ai-nrf1",
 
+  # Module contract layer
+  "crates/modules-core",
+  "crates/module-runner",
+
+  # Capability modules (all 6 families)
+  "modules/cap-intake",
+  "modules/cap-policy",
+  "modules/cap-enrich",
+  "modules/cap-permit",
+  "modules/cap-transport",
+  "modules/cap-llm",
+
   # Domain crates
   "crates/receipt",
   "crates/permit",
@@ -36,10 +48,6 @@ members = [
   # CLI / Tools
   "cli/nrf1",
   "tools/ubl-cli",
-
-  # Modules (MODULE phase)
-  "modules/receipt-gateway",
-  "modules/ledger-ndjson",
 
   # Conformance tests
   "tests/base_conformance",

@@ -20,3 +20,4 @@ ed25519-dalek = { version = "2", features = ["rand_core", "pkcs8", "pem"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 blake3 = "1"
 anyhow = "1"
+module-runner = { path = "../../crates/module-runner" }

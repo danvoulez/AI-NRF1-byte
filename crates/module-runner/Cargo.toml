@@ -1,0 +1,40 @@
+[package]
+name = "module-runner"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Module-phase runtime orchestrator: Runner, CapRegistry, EffectExecutor, Manifest"
+
+[dependencies]
+modules-core = { path = "../modules-core" }
+nrf1 = { path = "../nrf1" }
+nrf-core = { path = "../../impl/rust/nrf-core" }
+ubl_capsule = { path = "../../impl/rust/ubl_capsule" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+blake3 = "1"
+async-trait = "0.1"
+hex = "0.4"
+tracing = "0.1"
+reqwest = { version = "0.12", features = ["json"], default-features = false, optional = true }
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+tokio = { version = "1", features = ["fs", "time"], optional = true }
+ed25519-dalek = { version = "2", features = ["rand_core"], optional = true }
+rand_core = { version = "0.6", optional = true }
+axum = { version = "0.7", optional = true }
+
+[features]
+default = []
+live = ["reqwest/rustls-tls", "hmac", "sha2", "tokio", "ed25519-dalek", "rand_core"]
+server = ["axum", "tokio"]
+
+[dev-dependencies]
+cap-intake = { path = "../../modules/cap-intake" }
+cap-policy = { path = "../../modules/cap-policy" }
+cap-enrich = { path = "../../modules/cap-enrich" }
+cap-permit = { path = "../../modules/cap-permit" }
+cap-transport = { path = "../../modules/cap-transport" }
+cap-llm = { path = "../../modules/cap-llm" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

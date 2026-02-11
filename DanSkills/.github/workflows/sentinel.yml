@@ -1,0 +1,56 @@
+name: Sentinel (Blueprint ao vivo)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  sentinel:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sentinel-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      MIN_COVERAGE: ${{ vars.MIN_COVERAGE || '80' }}
+      TEST_CMD: ${{ vars.TEST_CMD }}
+      SENTINEL_SEMGREP_CONFIG: ${{ vars.SENTINEL_SEMGREP_CONFIG }}
+      SENTINEL_SEMGREP_FLAGS: ${{ vars.SENTINEL_SEMGREP_FLAGS }}
+      SENTINEL_OPA_QUERY: ${{ vars.SENTINEL_OPA_QUERY }}
+      SENTINEL_OPA_INPUT: ${{ vars.SENTINEL_OPA_INPUT || 'blueprint.yaml' }}
+      SENTINEL_OPA_DATABROKER: ${{ vars.SENTINEL_OPA_DATABROKER || 'policies/opa' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Instalar deps opcionais
+        run: |
+          python -m pip install --upgrade pip
+          pip cache dir
+
+          pip install pytest pytest-cov || true
+          pip install semgrep || true
+          sudo curl -L -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64
+          sudo chmod +x /usr/local/bin/opa || true
+      - name: Validar blueprint e rodar gates
+        run: |
+          chmod +x scripts/check_blueprint.sh || true
+          chmod +x scripts/run_tests.sh || true
+          bash -c '[[ -f scripts/check_blueprint.sh ]] && scripts/check_blueprint.sh || echo "sem check_blueprint.sh"'
+          if [ -n "${TEST_CMD}" ]; then
+            bash -lc "$TEST_CMD" || exit 1
+          else
+            bash -c '[[ -f scripts/run_tests.sh ]] && scripts/run_tests.sh || echo "sem run_tests.sh"'
+          fi
+          if command -v semgrep >/dev/null 2>&1; then
+            if [ -n "${SENTINEL_SEMGREP_CONFIG}" ]; then
+              semgrep --config "$SENTINEL_SEMGREP_CONFIG" ${SENTINEL_SEMGREP_FLAGS:-}
+            elif [ -f rules/semgrep/rules.yaml ]; then
+              semgrep --config rules/semgrep/rules.yaml
+            else
+              echo "Semgrep sem config — pulando"
+            fi
+          fi
+          if command -v opa >/dev/null 2>&1 && [ -n "${SENTINEL_OPA_QUERY}" ]; then
+            opa eval -i "${SENTINEL_OPA_INPUT}" -d "${SENTINEL_OPA_DATABROKER}" "${SENTINEL_OPA_QUERY}"
+          fi

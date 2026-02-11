@@ -1,0 +1,86 @@
+{
+  "v": "product-v1",
+  "name": "api-receipt-gateway",
+  "version": "2.0.0",
+  "pipeline": [
+    {
+      "step_id": "normalize",
+      "kind": "cap-intake",
+      "version": "^1.1",
+      "config": {
+        "defaults": { "ctx.kind": "transaction" },
+        "mapping": [
+          { "from": "req.body.user.id", "to": "ctx.user.id" },
+          { "from": "req.body.score_scaled", "to": "decision.metrics.risk_score" }
+        ]
+      }
+    },
+    {
+      "step_id": "policy",
+      "kind": "cap-policy",
+      "version": "^1.2",
+      "config": {
+        "decision_on_fail": "REQUIRE",
+        "rules": [
+          { "kind": "EXIST", "paths": ["ctx.user.id", "ctx.kind"] },
+          { "kind": "THRESHOLD_RANGE", "path": "decision.metrics.risk_score", "min": 700, "max": 900 },
+          { "kind": "NOT", "rule": { "kind": "ALLOWLIST", "path": "ctx.user.id", "values": ["banned-001"] } }
+        ]
+      }
+    },
+    {
+      "step_id": "permit",
+      "kind": "cap-permit",
+      "version": "^1.0",
+      "if": "result.verdict == 'REQUIRE'",
+      "config": {
+        "quorum": { "k": 1, "n": 2, "roles": ["ops", "legal"] },
+        "ttl_sec": 1800,
+        "timeout_action": "DENY"
+      }
+    },
+    {
+      "step_id": "assist",
+      "kind": "cap-llm",
+      "version": "^0.1",
+      "config": {
+        "model_binding": "OPENAI_GPT4O_MINI",
+        "prompt_cid": "b3:0000000000000000000000000000000000000000000000000000000000000000",
+        "inputs": { "summary": "ctx.doc.text" },
+        "max_tokens": 512,
+        "produce": ["artifact:json:analysis"]
+      }
+    },
+    {
+      "step_id": "transport",
+      "kind": "cap-transport",
+      "version": "^1.0",
+      "config": {
+        "node": "did:ubl:node-01#key-1",
+        "relay": [{ "kind": "http", "url": "https://relay.partner.net/ingest" }],
+        "clock_skew_sec": 60
+      }
+    },
+    {
+      "step_id": "enrich",
+      "kind": "cap-enrich",
+      "version": "^1.0",
+      "config": {
+        "drivers": [
+          { "kind": "status-page" },
+          { "kind": "webhook" }
+        ],
+        "redaction": ["req.headers.authorization"],
+        "webhook_binding": "WH_SEC"
+      }
+    }
+  ],
+  "io_bindings": {
+    "webhook.url": "https://api.client.com/hooks",
+    "WH_SEC": "supersecret",
+    "status.dir": "/var/www/status",
+    "NODE_KEY": "env:REGISTRY_SIGNING_KEY",
+    "partner.relay.url": "https://relay.partner.net/ingest",
+    "OPENAI_GPT4O_MINI": "env:OPENAI_API_KEY"
+  }
+}
