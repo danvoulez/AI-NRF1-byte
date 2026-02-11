@@ -59,8 +59,7 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
             let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
             format!("{home}/.ai-nrf1/state")
         });
-        let (modules_state, permit_state) =
-            routes::modules::init_modules_state(&state_dir);
+        let (modules_state, permit_state) = routes::modules::init_modules_state(&state_dir);
         tracing::info!(state_dir = %state_dir, "modules layer enabled");
         base.merge(routes::modules::modules_router(modules_state, permit_state))
     };

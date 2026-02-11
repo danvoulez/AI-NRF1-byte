@@ -1,8 +1,8 @@
 //! In-memory AssetResolver for tests and development.
 
+use modules_core::{Asset, AssetResolver, Cid};
 use std::collections::HashMap;
 use std::sync::Arc;
-use modules_core::{Asset, AssetResolver, Cid};
 
 #[derive(Clone)]
 pub struct MemoryResolver {

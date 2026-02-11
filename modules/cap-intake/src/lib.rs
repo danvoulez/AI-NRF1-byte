@@ -93,9 +93,7 @@ impl IntakeModule {
         }
 
         for rule in &cfg.mapping {
-            let val = Self::get(&j, &rule.from)
-                .cloned()
-                .unwrap_or(Value::Null);
+            let val = Self::get(&j, &rule.from).cloned().unwrap_or(Value::Null);
             Self::set(&mut j, &rule.to, val)?;
         }
 

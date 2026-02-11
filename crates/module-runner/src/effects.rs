@@ -97,7 +97,9 @@ impl<E: EffectExecutor> IdempotentExecutor<E> {
             Effect::WriteStorage { path, .. } => hasher.update(path.as_bytes()),
             Effect::QueueConsentTicket { ticket_id, .. } => hasher.update(ticket_id.as_bytes()),
             Effect::CloseConsentTicket { ticket_id, .. } => hasher.update(ticket_id.as_bytes()),
-            Effect::AppendReceipt { signer_binding, .. } => hasher.update(signer_binding.as_bytes()),
+            Effect::AppendReceipt { signer_binding, .. } => {
+                hasher.update(signer_binding.as_bytes())
+            }
             Effect::RelayOut { url_binding, .. } => hasher.update(url_binding.as_bytes()),
             Effect::InvokeLlm { cache_key, .. } => {
                 if let Some(ck) = cache_key {
@@ -136,10 +138,10 @@ impl<E: EffectExecutor> EffectExecutor for IdempotentExecutor<E> {
 // This is the "production" executor. Use DispatchBuilder to configure.
 // ---------------------------------------------------------------------------
 
-use std::sync::Arc;
 #[cfg(feature = "live")]
 use crate::adapters::http::idempotency_key;
 use crate::adapters::permit::{PermitStore, Ticket, TicketStatus};
+use std::sync::Arc;
 
 pub struct DispatchExecutor {
     pub storage_base: String,
@@ -278,7 +280,12 @@ impl DispatchExecutor {
         Ok(())
     }
 
-    fn exec_consent_close(&self, ticket_id: &str, outcome: &str, ctx: &ExecCtx) -> anyhow::Result<()> {
+    fn exec_consent_close(
+        &self,
+        ticket_id: &str,
+        outcome: &str,
+        ctx: &ExecCtx,
+    ) -> anyhow::Result<()> {
         let path = format!(
             "{}/permit-tickets/{}/{}.json",
             self.storage_base, ctx.tenant, ticket_id
@@ -299,9 +306,14 @@ impl DispatchExecutor {
 impl EffectExecutor for DispatchExecutor {
     async fn execute(&self, effect: &Effect, ctx: &ExecCtx) -> anyhow::Result<()> {
         match effect {
-            Effect::Webhook { url, body, content_type, hmac_key_env } => {
-                let resolved_url = crate::bindings::resolve(&ctx.io_bindings, url)
-                    .unwrap_or_else(|_| url.clone());
+            Effect::Webhook {
+                url,
+                body,
+                content_type,
+                hmac_key_env,
+            } => {
+                let resolved_url =
+                    crate::bindings::resolve(&ctx.io_bindings, url).unwrap_or_else(|_| url.clone());
 
                 #[cfg(feature = "live")]
                 if let Some(ref http) = self.http {
@@ -326,10 +338,7 @@ impl EffectExecutor for DispatchExecutor {
                         "effect.webhook"
                     );
                     if outcome.status >= 400 {
-                        return Err(anyhow::anyhow!(
-                            "webhook failed: HTTP {}",
-                            outcome.status
-                        ));
+                        return Err(anyhow::anyhow!("webhook failed: HTTP {}", outcome.status));
                     }
                     return Ok(());
                 }
@@ -348,15 +357,22 @@ impl EffectExecutor for DispatchExecutor {
                 self.exec_write_storage(path, bytes, mime)
             }
 
-            Effect::QueueConsentTicket { ticket_id, expires_at, required_roles, k, n } => {
-                self.exec_consent_queue(ticket_id, *expires_at, required_roles, *k, *n, ctx)
-            }
+            Effect::QueueConsentTicket {
+                ticket_id,
+                expires_at,
+                required_roles,
+                k,
+                n,
+            } => self.exec_consent_queue(ticket_id, *expires_at, required_roles, *k, *n, ctx),
 
             Effect::CloseConsentTicket { ticket_id, outcome } => {
                 self.exec_consent_close(ticket_id, outcome, ctx)
             }
 
-            Effect::AppendReceipt { payload_nrf, signer_binding } => {
+            Effect::AppendReceipt {
+                payload_nrf,
+                signer_binding,
+            } => {
                 if let Some(ref signer) = self.signer {
                     let node_key = crate::bindings::resolve(&ctx.io_bindings, signer_binding)
                         .unwrap_or_else(|_| "unknown-node".into());
@@ -399,7 +415,11 @@ impl EffectExecutor for DispatchExecutor {
                 Ok(())
             }
 
-            Effect::RelayOut { to, url_binding, body } => {
+            Effect::RelayOut {
+                to,
+                url_binding,
+                body,
+            } => {
                 let resolved_url = crate::bindings::resolve(&ctx.io_bindings, url_binding)
                     .unwrap_or_else(|_| url_binding.clone());
 
@@ -418,10 +438,7 @@ impl EffectExecutor for DispatchExecutor {
                         "effect.relay_out"
                     );
                     if outcome.status >= 400 {
-                        return Err(anyhow::anyhow!(
-                            "relay_out failed: HTTP {}",
-                            outcome.status
-                        ));
+                        return Err(anyhow::anyhow!("relay_out failed: HTTP {}", outcome.status));
                     }
                     return Ok(());
                 }
@@ -435,7 +452,12 @@ impl EffectExecutor for DispatchExecutor {
                 Ok(())
             }
 
-            Effect::InvokeLlm { model_binding, prompt, max_tokens, cache_key } => {
+            Effect::InvokeLlm {
+                model_binding,
+                prompt,
+                max_tokens,
+                cache_key,
+            } => {
                 if let Some(ref llm) = self.llm {
                     let model = crate::bindings::resolve(&ctx.io_bindings, model_binding)
                         .unwrap_or_else(|_| model_binding.clone());

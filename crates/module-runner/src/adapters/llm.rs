@@ -16,12 +16,8 @@ pub struct LlmOutput {
 /// Trait for LLM providers — allows test doubles.
 #[async_trait::async_trait]
 pub trait LlmProvider: Send + Sync {
-    async fn invoke(
-        &self,
-        model: &str,
-        prompt: &str,
-        max_tokens: u32,
-    ) -> anyhow::Result<LlmOutput>;
+    async fn invoke(&self, model: &str, prompt: &str, max_tokens: u32)
+        -> anyhow::Result<LlmOutput>;
 }
 
 /// Deterministic file-based cache for LLM responses.

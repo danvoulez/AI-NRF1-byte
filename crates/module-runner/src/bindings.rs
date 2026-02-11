@@ -28,7 +28,10 @@ mod tests {
     #[test]
     fn resolve_literal() {
         let bindings = json!({"webhook.url": "https://example.com"});
-        assert_eq!(resolve(&bindings, "webhook.url").unwrap(), "https://example.com");
+        assert_eq!(
+            resolve(&bindings, "webhook.url").unwrap(),
+            "https://example.com"
+        );
     }
 
     #[test]

@@ -280,7 +280,7 @@ pub fn parse_hex_lower(s: &str) -> Result<Vec<u8>> {
     if s.is_empty() {
         return Ok(Vec::new());
     }
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(Error::HexOddLength);
     }
     for ch in s.chars() {

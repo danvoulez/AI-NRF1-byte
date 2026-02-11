@@ -24,7 +24,12 @@ struct RecordingExecutor {
 impl RecordingExecutor {
     fn new() -> (Self, Arc<Mutex<Vec<String>>>) {
         let log = Arc::new(Mutex::new(vec![]));
-        (Self { effects: log.clone() }, log)
+        (
+            Self {
+                effects: log.clone(),
+            },
+            log,
+        )
     }
 }
 
@@ -141,11 +146,16 @@ async fn e2e_basic_allow_pipeline() {
     assert_eq!(result.verdict, Verdict::Allow);
     assert!(result.stopped_at.is_none(), "should complete all steps");
     assert_eq!(result.receipts.len(), 3);
-    assert!(!result.artifacts.is_empty(), "enrich should produce artifacts");
+    assert!(
+        !result.artifacts.is_empty(),
+        "enrich should produce artifacts"
+    );
 
     let effects = log.lock().unwrap();
     assert!(
-        effects.iter().any(|e| e.starts_with("enrich:write_storage")),
+        effects
+            .iter()
+            .any(|e| e.starts_with("enrich:write_storage")),
         "enrich should emit write_storage"
     );
     assert!(
@@ -490,8 +500,12 @@ async fn e2e_full_6_step_pipeline_allow() {
 
     let effects = log.lock().unwrap();
     assert!(effects.iter().any(|e| e.starts_with("assist:invoke_llm")));
-    assert!(effects.iter().any(|e| e.starts_with("transport:append_receipt")));
+    assert!(effects
+        .iter()
+        .any(|e| e.starts_with("transport:append_receipt")));
     assert!(effects.iter().any(|e| e.starts_with("transport:relay_out")));
-    assert!(effects.iter().any(|e| e.starts_with("enrich:write_storage")));
+    assert!(effects
+        .iter()
+        .any(|e| e.starts_with("enrich:write_storage")));
     assert!(effects.iter().any(|e| e.starts_with("enrich:webhook")));
 }

@@ -274,11 +274,21 @@ mod tests {
         seed_ticket(&store);
 
         // First approval — pending
-        let r = store.approve("acme", "t-001", "ops", 2_000_000, None).unwrap();
-        assert_eq!(r, PermitOutcome::Pending { approvals: 1, needed: 2 });
+        let r = store
+            .approve("acme", "t-001", "ops", 2_000_000, None)
+            .unwrap();
+        assert_eq!(
+            r,
+            PermitOutcome::Pending {
+                approvals: 1,
+                needed: 2
+            }
+        );
 
         // Second approval — quorum met
-        let r = store.approve("acme", "t-001", "risk", 3_000_000, None).unwrap();
+        let r = store
+            .approve("acme", "t-001", "risk", 3_000_000, None)
+            .unwrap();
         assert_eq!(r, PermitOutcome::Closed(TicketStatus::Allow));
 
         // Verify persisted
@@ -294,8 +304,12 @@ mod tests {
         let (store, dir) = temp_store("dup_role");
         seed_ticket(&store);
 
-        store.approve("acme", "t-001", "ops", 2_000_000, None).unwrap();
-        let r = store.approve("acme", "t-001", "ops", 3_000_000, None).unwrap();
+        store
+            .approve("acme", "t-001", "ops", 2_000_000, None)
+            .unwrap();
+        let r = store
+            .approve("acme", "t-001", "ops", 3_000_000, None)
+            .unwrap();
         assert!(matches!(r, PermitOutcome::Rejected(_)));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -306,7 +320,9 @@ mod tests {
         let (store, dir) = temp_store("invalid_role");
         seed_ticket(&store);
 
-        let r = store.approve("acme", "t-001", "janitor", 2_000_000, None).unwrap();
+        let r = store
+            .approve("acme", "t-001", "janitor", 2_000_000, None)
+            .unwrap();
         assert!(matches!(r, PermitOutcome::Rejected(_)));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -332,7 +348,9 @@ mod tests {
         seed_ticket(&store);
 
         store.deny("acme", "t-001", "ops", 2_000_000).unwrap();
-        let r = store.approve("acme", "t-001", "risk", 3_000_000, None).unwrap();
+        let r = store
+            .approve("acme", "t-001", "risk", 3_000_000, None)
+            .unwrap();
         assert!(matches!(r, PermitOutcome::Rejected(_)));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -361,7 +379,9 @@ mod tests {
         ticket.expires_at = 1_500_000;
         store.save(&ticket).unwrap();
 
-        let r = store.approve("acme", "t-001", "ops", 2_000_000, None).unwrap();
+        let r = store
+            .approve("acme", "t-001", "ops", 2_000_000, None)
+            .unwrap();
         assert_eq!(r, PermitOutcome::Closed(TicketStatus::Expired));
 
         let _ = std::fs::remove_dir_all(&dir);

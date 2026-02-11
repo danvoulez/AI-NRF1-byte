@@ -6,10 +6,10 @@
 //!   - `DENY`  → break, finalize with DENY
 //!   - `REQUIRE` → execute effects (QueueConsentTicket), break with REQUIRE (pending)
 
-use modules_core::{CapInput, CapOutput, ExecutionMeta, Verdict};
 use crate::cap_registry::CapRegistry;
 use crate::effects::{EffectExecutor, ExecCtx};
 use crate::manifest::Manifest;
+use modules_core::{CapInput, CapOutput, ExecutionMeta, Verdict};
 
 /// Result of a pipeline run.
 #[derive(Debug)]
@@ -82,9 +82,7 @@ impl<'a, E: EffectExecutor> Runner<'a, E> {
             let cap = self
                 .caps
                 .get(&step.kind, &step.version)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("cap not found: {} {}", step.kind, step.version)
-                })?;
+                .ok_or_else(|| anyhow::anyhow!("cap not found: {} {}", step.kind, step.version))?;
 
             cap.validate_config(&step.config)?;
 

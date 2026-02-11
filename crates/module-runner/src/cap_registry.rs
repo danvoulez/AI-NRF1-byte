@@ -1,7 +1,7 @@
 //! Capability registry: register and lookup capabilities by kind + version.
 
-use std::sync::Arc;
 use modules_core::Capability;
+use std::sync::Arc;
 
 pub struct CapRegistry {
     inner: Vec<Arc<dyn Capability>>,

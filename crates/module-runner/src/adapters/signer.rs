@@ -88,11 +88,7 @@ pub fn append_and_verify(
     ts: i64,
     resolve_pk: &dyn Fn(&str) -> Option<ed25519_dalek::VerifyingKey>,
 ) -> anyhow::Result<()> {
-    let prev = capsule
-        .receipts
-        .last()
-        .map(|r| r.id)
-        .unwrap_or([0u8; 32]);
+    let prev = capsule.receipts.last().map(|r| r.id).unwrap_or([0u8; 32]);
 
     let draft = HopDraft {
         capsule_id: capsule.id,

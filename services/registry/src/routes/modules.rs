@@ -7,13 +7,7 @@
 //!   POST /modules/run                         → execute a product pipeline
 
 #[cfg(feature = "modules")]
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 
 #[cfg(feature = "modules")]
 use serde::Deserialize;
@@ -155,9 +149,11 @@ fn json_to_nrf(j: &serde_json::Value) -> anyhow::Result<nrf1::Value> {
             }
         }
         serde_json::Value::String(s) => V::String(s.clone()),
-        serde_json::Value::Array(a) => {
-            V::Array(a.iter().map(json_to_nrf).collect::<anyhow::Result<Vec<_>>>()?)
-        }
+        serde_json::Value::Array(a) => V::Array(
+            a.iter()
+                .map(json_to_nrf)
+                .collect::<anyhow::Result<Vec<_>>>()?,
+        ),
         serde_json::Value::Object(o) => {
             let mut m = std::collections::BTreeMap::new();
             for (k, v) in o {
@@ -201,10 +197,7 @@ pub fn init_modules_state(state_dir: &str) -> (Arc<ModulesState>, Arc<PermitStat
 }
 
 #[cfg(feature = "modules")]
-pub fn modules_router(
-    modules_state: Arc<ModulesState>,
-    permit_state: Arc<PermitState>,
-) -> Router {
+pub fn modules_router(modules_state: Arc<ModulesState>, permit_state: Arc<PermitState>) -> Router {
     let run_router = Router::new()
         .route("/modules/run", post(run_pipeline))
         .with_state(modules_state);

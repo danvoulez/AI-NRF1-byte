@@ -183,7 +183,9 @@ impl fmt::Display for PipelineError {
 
 impl std::error::Error for PipelineError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as &(dyn std::error::Error + 'static))
+        self.source
+            .as_ref()
+            .map(|e| e.as_ref() as &(dyn std::error::Error + 'static))
     }
 }
 
@@ -222,6 +224,9 @@ mod tests {
     #[test]
     fn display_format() {
         let err = PipelineError::new(ErrorCode::HopBadChain, "prev mismatch at hop 3");
-        assert_eq!(format!("{err}"), "[Err.Hop.BadChain] prev mismatch at hop 3");
+        assert_eq!(
+            format!("{err}"),
+            "[Err.Hop.BadChain] prev mismatch at hop 3"
+        );
     }
 }

@@ -179,18 +179,21 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Permit { action, state_dir } => {
             let expanded = expand_tilde(&state_dir);
             match action {
-                PermitAction::Approve { tenant, ticket, role, sig } => {
-                    cmd_permit_approve(&expanded, &tenant, &ticket, &role, sig.as_deref())
-                }
-                PermitAction::Deny { tenant, ticket, role } => {
-                    cmd_permit_deny(&expanded, &tenant, &ticket, &role)
-                }
+                PermitAction::Approve {
+                    tenant,
+                    ticket,
+                    role,
+                    sig,
+                } => cmd_permit_approve(&expanded, &tenant, &ticket, &role, sig.as_deref()),
+                PermitAction::Deny {
+                    tenant,
+                    ticket,
+                    role,
+                } => cmd_permit_deny(&expanded, &tenant, &ticket, &role),
                 PermitAction::List { tenant, status } => {
                     cmd_permit_list(&expanded, &tenant, status.as_deref())
                 }
-                PermitAction::Expire { tenant } => {
-                    cmd_permit_expire(&expanded, &tenant)
-                }
+                PermitAction::Expire { tenant } => cmd_permit_expire(&expanded, &tenant),
             }
         }
     }
@@ -645,7 +648,11 @@ fn cmd_permit_list(state_dir: &str, tenant: &str, status_filter: Option<&str>) -
             t.status,
             t.approvals.len(),
             t.k,
-            t.approvals.iter().map(|a| a.role.as_str()).collect::<Vec<_>>().join(","),
+            t.approvals
+                .iter()
+                .map(|a| a.role.as_str())
+                .collect::<Vec<_>>()
+                .join(","),
             t.expires_at,
         );
     }

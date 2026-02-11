@@ -23,6 +23,7 @@ struct Config {
     #[serde(default)]
     relay: Vec<Relay>,
     #[serde(default = "default_clock_skew")]
+    #[allow(dead_code)]
     clock_skew_sec: i64,
 }
 
@@ -36,15 +37,12 @@ pub struct TransportModule;
 impl TransportModule {
     /// Build the NRF-encoded receipt payload (without sig).
     /// Fields: {domain, of, prev, kind, node, ts} — sorted by key (BTreeMap).
-    fn build_receipt_payload(
-        of: &Cid,
-        prev: &Cid,
-        kind: &str,
-        node: &str,
-        ts: i64,
-    ) -> Vec<u8> {
+    fn build_receipt_payload(of: &Cid, prev: &Cid, kind: &str, node: &str, ts: i64) -> Vec<u8> {
         let mut m = BTreeMap::new();
-        m.insert("domain".into(), nrf1::Value::String("ubl-receipt/1.0".into()));
+        m.insert(
+            "domain".into(),
+            nrf1::Value::String("ubl-receipt/1.0".into()),
+        );
         m.insert("kind".into(), nrf1::Value::String(kind.into()));
         m.insert("node".into(), nrf1::Value::String(node.into()));
         m.insert("of".into(), nrf1::Value::Bytes(of.to_vec()));
@@ -54,6 +52,7 @@ impl TransportModule {
     }
 
     /// Check expiration: ts_nanos + skew >= now.
+    #[cfg(test)]
     fn check_exp(exp_nanos: Option<i64>, now_nanos: i64, skew_sec: i64) -> anyhow::Result<()> {
         if let Some(exp) = exp_nanos {
             let deadline = exp + (skew_sec * 1_000_000_000);
@@ -109,13 +108,8 @@ impl Capability for TransportModule {
         let of: Cid = *blake3::hash(&env_bytes).as_bytes();
 
         // Build receipt payload (NRF bytes, unsigned).
-        let payload_nrf = Self::build_receipt_payload(
-            &of,
-            &prev,
-            "pipeline-hop",
-            &cfg.node,
-            input.meta.ts_nanos,
-        );
+        let payload_nrf =
+            Self::build_receipt_payload(&of, &prev, "pipeline-hop", &cfg.node, input.meta.ts_nanos);
 
         effects.push(Effect::AppendReceipt {
             payload_nrf,

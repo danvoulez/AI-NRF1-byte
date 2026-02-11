@@ -209,7 +209,12 @@ mod tests {
         // Should have QueueConsentTicket + WriteStorage
         assert_eq!(out.effects.len(), 2);
         match &out.effects[0] {
-            Effect::QueueConsentTicket { k, n, required_roles, .. } => {
+            Effect::QueueConsentTicket {
+                k,
+                n,
+                required_roles,
+                ..
+            } => {
                 assert_eq!(*k, 2);
                 assert_eq!(*n, 3);
                 assert_eq!(required_roles.len(), 3);

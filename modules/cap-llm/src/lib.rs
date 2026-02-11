@@ -52,7 +52,11 @@ impl LlmModule {
     }
 
     /// Render prompt template by replacing `{{key}}` with extracted values.
-    fn render_prompt(template: &str, env_json: &Value, inputs: &serde_json::Map<String, Value>) -> String {
+    fn render_prompt(
+        template: &str,
+        env_json: &Value,
+        inputs: &serde_json::Map<String, Value>,
+    ) -> String {
         let mut rendered = template.to_string();
         for (key, path_val) in inputs {
             if let Some(path_str) = path_val.as_str() {
@@ -69,7 +73,11 @@ impl LlmModule {
     }
 
     /// Compute cache key: blake3(prompt_cid || sorted_input_values).
-    fn cache_key(prompt_cid: &str, env_json: &Value, inputs: &serde_json::Map<String, Value>) -> String {
+    fn cache_key(
+        prompt_cid: &str,
+        env_json: &Value,
+        inputs: &serde_json::Map<String, Value>,
+    ) -> String {
         let mut hasher = blake3::Hasher::new();
         hasher.update(prompt_cid.as_bytes());
         for (key, path_val) in inputs {
@@ -106,8 +114,12 @@ impl Capability for LlmModule {
 
         // Resolve prompt template from assets by CID.
         let prompt_cid_bytes: Cid = {
-            let decoded = hex::decode(cfg.prompt_cid.strip_prefix("b3:").unwrap_or(&cfg.prompt_cid))
-                .unwrap_or_else(|_| vec![0u8; 32]);
+            let decoded = hex::decode(
+                cfg.prompt_cid
+                    .strip_prefix("b3:")
+                    .unwrap_or(&cfg.prompt_cid),
+            )
+            .unwrap_or_else(|_| vec![0u8; 32]);
             let mut arr = [0u8; 32];
             let len = decoded.len().min(32);
             arr[..len].copy_from_slice(&decoded[..len]);
@@ -118,7 +130,7 @@ impl Capability for LlmModule {
             Ok(asset) => String::from_utf8_lossy(&asset.bytes).into_owned(),
             Err(_) => {
                 // Fallback: use prompt_cid as a placeholder template.
-                format!("Analyze the following context: {{{{summary}}}}")
+                "Analyze the following context: {{summary}}".to_string()
             }
         };
 
@@ -208,11 +220,16 @@ mod tests {
         CapInput {
             env: nrf1::Value::Map({
                 let mut m = std::collections::BTreeMap::new();
-                m.insert("summary".into(), nrf1::Value::String("test document text".into()));
+                m.insert(
+                    "summary".into(),
+                    nrf1::Value::String("test document text".into()),
+                );
                 m
             }),
             config,
-            assets: Box::new(MockResolver { prompt: prompt.into() }),
+            assets: Box::new(MockResolver {
+                prompt: prompt.into(),
+            }),
             prev_receipts: vec![],
             meta: ExecutionMeta {
                 run_id: "run-llm-001".into(),
@@ -258,7 +275,10 @@ mod tests {
 
         assert!(out.verdict.is_none(), "cap-llm must NEVER set verdict");
         assert_eq!(out.artifacts.len(), 1);
-        assert!(out.effects.iter().any(|e| matches!(e, Effect::InvokeLlm { .. })));
+        assert!(out
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::InvokeLlm { .. })));
     }
 
     #[test]

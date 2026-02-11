@@ -16,7 +16,7 @@ jobs:
         run: cargo build --release
 
       - name: Setup Ollama
-        uses: jasonwhite/gh-setup-ollama@v1
+        uses: ai-action/setup-ollama@v2
 
       - name: Pull model (Llama 3 8B instruct)
         run: ollama pull llama3:8b-instruct

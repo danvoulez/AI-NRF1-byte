@@ -12,7 +12,8 @@ libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 
 [dependencies.nrf-core]
-path = "..", features = ["fuzz_expose"]
+path = ".."
+features = ["fuzz_expose"]
 
 [[bin]]
 name = "decode_value"

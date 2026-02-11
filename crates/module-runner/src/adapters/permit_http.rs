@@ -81,7 +81,9 @@ mod server {
         Path((tenant, ticket_id)): Path<(String, String)>,
     ) -> impl IntoResponse {
         match state.store.get(&tenant, &ticket_id) {
-            Ok(Some(ticket)) => (StatusCode::OK, Json(serde_json::to_value(&ticket).unwrap())).into_response(),
+            Ok(Some(ticket)) => {
+                (StatusCode::OK, Json(serde_json::to_value(&ticket).unwrap())).into_response()
+            }
             Ok(None) => (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({"error": "ticket not found"})),
@@ -101,7 +103,10 @@ mod server {
         Json(body): Json<ApproveRequest>,
     ) -> impl IntoResponse {
         let now = now_nanos();
-        match state.store.approve(&tenant, &ticket_id, &body.role, now, body.sig) {
+        match state
+            .store
+            .approve(&tenant, &ticket_id, &body.role, now, body.sig)
+        {
             Ok(PermitOutcome::Pending { approvals, needed }) => (
                 StatusCode::OK,
                 Json(PermitResponse {

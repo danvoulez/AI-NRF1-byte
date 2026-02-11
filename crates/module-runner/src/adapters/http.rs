@@ -106,7 +106,11 @@ impl HttpClient {
                         tokio::time::sleep(delay).await;
                         continue;
                     }
-                    return Err(anyhow::anyhow!("http.post failed after {} retries: {}", retries, e));
+                    return Err(anyhow::anyhow!(
+                        "http.post failed after {} retries: {}",
+                        retries,
+                        e
+                    ));
                 }
             }
         }
