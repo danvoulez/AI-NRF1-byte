@@ -27,6 +27,30 @@ hex = "0.4"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 ubl-storage = { path = "../../crates/ubl-storage" }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# --- MODULES feature: compiles cap modules + runner into the same binary ---
+module-runner = { path = "../../crates/module-runner", features = ["server"], optional = true }
+modules-core = { path = "../../crates/modules-core", optional = true }
+cap-intake = { path = "../../modules/cap-intake", optional = true }
+cap-policy = { path = "../../modules/cap-policy", optional = true }
+cap-permit = { path = "../../modules/cap-permit", optional = true }
+cap-enrich = { path = "../../modules/cap-enrich", optional = true }
+cap-transport = { path = "../../modules/cap-transport", optional = true }
+cap-llm = { path = "../../modules/cap-llm", optional = true }
+
+[features]
+default = []
+modules = [
+  "module-runner",
+  "modules-core",
+  "cap-intake",
+  "cap-policy",
+  "cap-permit",
+  "cap-enrich",
+  "cap-transport",
+  "cap-llm",
+]
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }

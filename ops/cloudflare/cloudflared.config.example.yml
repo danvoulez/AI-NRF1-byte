@@ -5,7 +5,10 @@ tunnel: ai-nrf1
 credentials-file: /Users/danvoulez/.cloudflared/REPLACE_ME.json
 
 ingress:
+  # Single binary: BASE + MODULES on port 8791
   - hostname: registry.ubl.agency
     service: http://127.0.0.1:8791
+    originRequest:
+      noTLSVerify: true
   - service: http_status:404
 

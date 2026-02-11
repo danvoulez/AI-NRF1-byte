@@ -293,3 +293,101 @@ ubl product run --manifest products/api-receipt-gateway/product.json \
 Uses `LoggingExecutor` internally — modules execute (pure), effects are
 logged but not dispatched. Useful for manifest validation and DX.
 
+## 13) Production Deployment (LAB 512)
+
+### Architecture
+
+ONE binary, ONE process. Modules are feature flags, not separate services.
+
+```
+cargo build --release -p registry --features modules
+```
+
+This compiles BASE (receipts, ghosts, signing) + MODULES (permit, pipeline run,
+all 6 cap families) into a single `registry` binary.
+
+### Quick start
+
+```bash
+bash deploy/go-live.sh
+```
+
+This script:
+1. Checks prerequisites (`cargo`, `pm2`, `cloudflared`)
+2. Creates state directories at `~/.ai-nrf1/state/`
+3. Copies `.env.production` → `.env` (edit with real secrets)
+4. Builds release binary with `--features modules`
+5. Computes `BINARY_SHA256` for runtime attestation
+6. Runs `module-runner` tests
+7. Starts PM2 (registry + cloudflared)
+8. Health-checks `http://127.0.0.1:8791/health`
+
+### PM2 process table
+
+| Process | Binary | What |
+|---|---|---|
+| `ai-nrf1` | `target/release/registry` | BASE + MODULES (port 8791) |
+| `cloudflared` | `cloudflared tunnel run` | Tunnel → `registry.ubl.agency` |
+
+### Feature flags
+
+| Flag | Effect |
+|---|---|
+| (none) | BASE only: receipts, ghosts, signing, health |
+| `modules` | + permit HTTP, pipeline run, all 6 cap modules |
+| `modules` + `live` | + real HTTP client (reqwest), Ed25519 signer |
+
+### Routes (with `--features modules`)
+
+| Method | Path | Layer |
+|---|---|---|
+| `GET` | `/health` | BASE |
+| `GET` | `/v1/receipts/:id` | BASE |
+| `POST` | `/v1/receipts` | BASE |
+| `GET` | `/permit/:tenant/:ticket_id` | MODULES |
+| `POST` | `/permit/:tenant/:ticket_id/approve` | MODULES |
+| `POST` | `/permit/:tenant/:ticket_id/deny` | MODULES |
+| `POST` | `/modules/run` | MODULES |
+
+### Environment variables
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `PORT` | no | `8791` | Listen port |
+| `RUST_LOG` | no | `registry=info,axum=info` | Log filter |
+| `ISSUER_DID` | no | `did:ubl:registry-dev` | Node identity |
+| `SIGNING_KEY_HEX` | **yes** (prod) | ephemeral | Ed25519 seed (64 hex) |
+| `STATE_DIR` | no | `~/.ai-nrf1/state` | Permit tickets, idem, cache |
+| `OPENAI_API_KEY` | no | stub | LLM provider key |
+| `BINARY_SHA256` | no | `dev-build-no-hash` | Runtime attestation |
+
+### Cloudflare Tunnel setup
+
+```bash
+brew install cloudflared
+cloudflared tunnel login
+cloudflared tunnel create ai-nrf1
+cloudflared tunnel route dns ai-nrf1 registry.ubl.agency
+cp ops/cloudflare/cloudflared.config.example.yml ~/.cloudflared/config.yml
+# Edit credentials-file path in config.yml
+```
+
+### Day-to-day operations
+
+```bash
+pm2 logs ai-nrf1          # view logs
+pm2 restart ai-nrf1        # restart after deploy
+pm2 monit                  # dashboard
+ubl permit list --tenant T # list consent tickets
+```
+
+### Redeployment
+
+```bash
+git pull origin main
+bash deploy/go-live.sh     # rebuilds + restarts
+# or:
+cargo build --release -p registry --features modules
+pm2 restart ai-nrf1
+```
+

@@ -1,98 +1,96 @@
 // ==========================================================================
 // LAB 512 — PM2 Ecosystem Configuration
 //
-// The BASE is the kernel. It runs once. Modules are processes that drain
-// energy and rules from the installed BASE.
+// ONE binary, TWO layers:
+//   cargo build --release -p registry --features modules
 //
 // Architecture:
 //   ┌─────────────────────────────────────────────┐
-//   │  LAB 512 (your machine)                     │
+//   │  LAB 512 (this machine)                     │
 //   │                                             │
 //   │  ┌─────────────────────────────────┐        │
-//   │  │  BASE (registry service)        │        │
-//   │  │  Port 8080                      │        │
-//   │  │  - ρ normalization              │        │
-//   │  │  - PolicyEngine socket          │        │
-//   │  │  - RuntimeAttestation           │        │
-//   │  │  - Receipt/Ghost/Permit storage │        │
-//   │  │  - Ed25519 signing              │        │
+//   │  │  registry (--features modules)  │        │
+//   │  │  Port 8791                      │        │
+//   │  │                                 │        │
+//   │  │  BASE routes:                   │        │
+//   │  │    /health, /v1/receipts, ...   │        │
+//   │  │                                 │        │
+//   │  │  MODULES routes (feature flag): │        │
+//   │  │    /permit/:t/:id/approve       │        │
+//   │  │    /permit/:t/:id/deny          │        │
+//   │  │    /modules/run                 │        │
 //   │  └──────────┬──────────────────────┘        │
-//   │             │ localhost:8080                 │
+//   │             │ 127.0.0.1:8791                │
 //   │  ┌──────────┴──────────────────────┐        │
-//   │  │  MODULES (future PM2 processes) │        │
-//   │  │  - receipt-gateway (built-in)   │        │
-//   │  │  - policy packs (future)        │        │
-//   │  │  - intake adapters (future)     │        │
-//   │  │  - enrichments (future)         │        │
-//   │  └─────────────────────────────────┘        │
-//   │             │                               │
-//   │  ┌──────────┴──────────────────────┐        │
-//   │  │  Cloudflare Tunnel              │        │
-//   │  │  → passports.ubl.agency         │        │
+//   │  │  cloudflared tunnel             │        │
+//   │  │  → registry.ubl.agency          │        │
 //   │  └─────────────────────────────────┘        │
 //   └─────────────────────────────────────────────┘
 //
 // Usage:
+//   # First time:
+//   bash deploy/go-live.sh
+//
+//   # Manual:
 //   pm2 start deploy/ecosystem.config.js
 //   pm2 save
 //   pm2 startup
 //
 // ==========================================================================
 
+const path = require("path");
+const ROOT = path.resolve(__dirname, "..");
+
 module.exports = {
   apps: [
     // -----------------------------------------------------------------
-    // BASE — The Registry Service (the kernel)
+    // The ONE binary: BASE + MODULES compiled together.
     //
-    // This is the ONE process that owns the canonical pipeline.
-    // All modules connect to it. It never goes down.
+    // Parent Law (Constitution of Modules, Article VI):
+    //   The Base is always the parent. A module is always the child.
+    //   Modules are feature flags of the same binary, not separate
+    //   processes.
     // -----------------------------------------------------------------
     {
-      name: "base-registry",
+      name: "ai-nrf1",
       script: "./target/release/registry",
-      cwd: __dirname + "/..",
-      interpreter: "none",              // it's a compiled binary
+      cwd: ROOT,
+      interpreter: "none",
       autorestart: true,
       max_restarts: 10,
       restart_delay: 3000,
-      watch: false,                     // binaries don't hot-reload
+      watch: false,
+      kill_timeout: 10000,
+      env_file: path.join(ROOT, ".env"),
       env: {
-        // --- Required ---
-        DATABASE_URL: "postgres://localhost:5432/ubl_registry",
-        RUST_LOG: "registry=info,axum=info",
-
-        // --- Identity ---
+        PORT: "8791",
+        RUST_LOG: "registry=info,axum=info,tower_http=info,module_runner=info",
         ISSUER_DID: "did:ubl:lab512",
-        CDN_BASE: "https://passports.ubl.agency",
-
-        // --- Signing (generate with: openssl rand -hex 32) ---
-        // SIGNING_KEY_HEX: "<your-32-byte-hex-key>",
-        // If not set, generates ephemeral key (dev mode)
-
-        // --- Runtime attestation ---
-        // BINARY_SHA256: "<sha256-of-registry-binary>",
-        // If not set, uses "dev-build-no-hash"
-
-        // --- Port ---
-        PORT: "8080",
+        CDN_BASE: "https://registry.ubl.agency",
+        STATE_DIR: process.env.HOME + "/.ai-nrf1/state",
       },
     },
 
     // -----------------------------------------------------------------
-    // MODULES ARE NOT SEPARATE PROCESSES.
+    // Cloudflare Tunnel — exposes 127.0.0.1:8791 as registry.ubl.agency
     //
-    // The Parent Law (Constitution of Modules, Article VI):
-    //   The Base is always the parent. A module is always the child.
-    //
-    // Rust modules:  compiled into the base-registry binary.
-    //                No separate process. No network boundary.
-    //
-    // Non-Rust modules (future): spawned as CHILD processes BY the Base.
-    //                The Base starts them, feeds them, signs for them.
-    //                They never hold a signing key, touch the DB, or
-    //                open a port. They are guests.
-    //
-    // There is ONE PM2 process: base-registry. That's the whole cloud.
+    // Prerequisites:
+    //   brew install cloudflared
+    //   cloudflared tunnel login
+    //   cloudflared tunnel create ai-nrf1
+    //   cloudflared tunnel route dns ai-nrf1 registry.ubl.agency
+    //   cp ops/cloudflare/cloudflared.config.example.yml ~/.cloudflared/config.yml
+    //   # Edit credentials-file path in config.yml
     // -----------------------------------------------------------------
+    {
+      name: "cloudflared",
+      script: "cloudflared",
+      args: "tunnel run ai-nrf1",
+      interpreter: "none",
+      autorestart: true,
+      max_restarts: 5,
+      restart_delay: 5000,
+      watch: false,
+    },
   ],
 };
