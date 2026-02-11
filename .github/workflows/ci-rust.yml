@@ -4,8 +4,10 @@ on:
   push:
     paths:
       - "impl/rust/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
+      - "crates/**"
+      - "modules/**"
+      - "services/**"
+      - "Cargo.*"
 
 jobs:
   rust-workspace-quick:

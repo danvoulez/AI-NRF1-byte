@@ -1,3 +1,5 @@
+![CI](https://github.com/danvoulez/AI-NRF1-byte/actions/workflows/ci.yml/badge.svg)
+![Release](https://github.com/danvoulez/AI-NRF1-byte/actions/workflows/release.yml/badge.svg)
 
 # AI-NRF1 Rust Stack — UBL → App → Tenant → User
 
