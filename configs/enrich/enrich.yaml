@@ -1,0 +1,24 @@
+timeout_ms: 2000
+max_extra_bytes: 8192
+providers:
+  - id: "pricing.v1"
+    kind:
+      type: "HttpJson"
+      url: "http://127.0.0.1:8899/v1/pricing/eval"
+    required: false
+    attach_metrics: true
+    attach_evidence: true
+    namespace: "pricing"
+    inputs:
+      currency: "USD"
+      country: "US"
+
+  - id: "risk.static"
+    kind:
+      type: "Static"
+      value:
+        risk_band: "LOW"
+        risk_score: 0.12
+    required: false
+    attach_metrics: true
+    namespace: "risk"

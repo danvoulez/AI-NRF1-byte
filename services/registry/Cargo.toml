@@ -17,6 +17,7 @@ anyhow = "1"
 # BASE crates
 nrf-core = { path = "../../impl/rust/nrf-core" }
 nrf1 = { path = "../../crates/nrf1" }
+ubl_json_view = { path = "../../impl/rust/ubl_json_view" }
 receipt = { path = "../../crates/receipt" }
 ghost = { path = "../../crates/ghost" }
 runtime = { path = "../../crates/runtime" }

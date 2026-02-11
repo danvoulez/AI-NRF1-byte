@@ -3342,6 +3342,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ubl-storage",
+ "ubl_json_view",
  "uuid",
 ]
 

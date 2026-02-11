@@ -1,0 +1,7 @@
+delivery:
+  guard_ms: 2000
+  max_attempts: 3
+
+# (Optional DEV) Private key hex (32 bytes) for signing receipts on /hop.
+# In production, omit this and send "ed25519_sk_hex" in the body OR sign via external KMS.
+dev_ed25519_sk_hex: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

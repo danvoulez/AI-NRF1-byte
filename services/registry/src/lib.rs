@@ -63,6 +63,7 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
             routes::modules::init_modules_state(&state_dir);
         tracing::info!(state_dir = %state_dir, "modules layer enabled");
         base.merge(routes::modules::modules_router(modules_state, permit_state))
+            .merge(routes::cap_http::cap_http_router())
     };
 
     base

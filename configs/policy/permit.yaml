@@ -1,0 +1,26 @@
+version: "permit/0.1"
+
+rules:
+  - id: "allow-attest-by-app"
+    when:
+      eq:
+        "env.intent.kind": "ATTEST"
+        "env.meta.app": "demo-app"
+      exists:
+        - "env.agent.id"
+    decision: ACK
+
+  - id: "deny-expired"
+    when:
+      prefix:
+        "v": "ubl-capsule/"
+      eq:
+        "hdr.expired": true
+    decision: NACK
+    reason: "expired"
+
+  - id: "ask-default"
+    when: {}
+    decision: ASK
+
+quotas: []
