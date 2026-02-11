@@ -53,7 +53,8 @@ module.exports = {
     // -----------------------------------------------------------------
     {
       name: "ai-nrf1",
-      script: "./target/release/registry",
+      // Use release binary if installed, otherwise fall back to cargo build
+      script: "/usr/local/bin/registry",
       cwd: ROOT,
       interpreter: "none",
       autorestart: true,
