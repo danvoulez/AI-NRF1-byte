@@ -1,23 +1,18 @@
-name: Rust Conformance
+name: Rust workspace (quick)
 
 on:
   push:
     paths:
-      - 'impl/rust/**'
-      - 'tests/vectors/**'
-      - '.github/workflows/ci-rust.yml'
-      - 'Cargo.toml'
-  pull_request:
+      - "impl/rust/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
 
 jobs:
-  test:
+  rust-workspace-quick:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-      - name: Build
-        run: cargo build --workspace --locked
-      - name: Test (Conformance)
-        run: cargo test --workspace -- --nocapture
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --locked
+      - run: cargo test --workspace --locked
