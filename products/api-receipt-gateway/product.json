@@ -44,7 +44,7 @@
       "kind": "cap-llm",
       "version": "^0.1",
       "config": {
-        "model_binding": "OPENAI_GPT4O_MINI",
+        "model_binding": "ANTHROPIC_CLAUDE",
         "prompt_cid": "b3:0000000000000000000000000000000000000000000000000000000000000000",
         "inputs": { "summary": "ctx.doc.text" },
         "max_tokens": 512,
@@ -81,6 +81,6 @@
     "status.dir": "/var/www/status",
     "NODE_KEY": "env:REGISTRY_SIGNING_KEY",
     "partner.relay.url": "https://relay.partner.net/ingest",
-    "OPENAI_GPT4O_MINI": "env:OPENAI_API_KEY"
+    "ANTHROPIC_CLAUDE": "env:ANTHROPIC_API_KEY"
   }
 }

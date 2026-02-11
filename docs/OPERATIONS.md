@@ -127,7 +127,7 @@ Values prefixed with `env:` are resolved from environment variables at runtime.
 | `storage.dir` | `/var/lib/ubl/artifacts` | `Effect::WriteStorage` |
 | `NODE_KEY` | `env:REGISTRY_SIGNING_KEY` | `Effect::AppendReceipt` (Ed25519 seed) |
 | `partner.relay.url` | `https://relay.partner.net/ingest` | `Effect::RelayOut` |
-| `OPENAI_GPT4O_MINI` | `env:OPENAI_API_KEY` | `Effect::InvokeLlm` |
+| `ANTHROPIC_CLAUDE` | `env:ANTHROPIC_API_KEY` | `Effect::InvokeLlm` |
 
 ### Resolution rules
 
@@ -358,7 +358,7 @@ This script:
 | `ISSUER_DID` | no | `did:ubl:registry-dev` | Node identity |
 | `SIGNING_KEY_HEX` | **yes** (prod) | ephemeral | Ed25519 seed (64 hex) |
 | `STATE_DIR` | no | `~/.ai-nrf1/state` | Permit tickets, idem, cache |
-| `OPENAI_API_KEY` | no | stub | LLM provider key |
+| `ANTHROPIC_API_KEY` | no | stub | LLM provider key |
 | `BINARY_SHA256` | no | `dev-build-no-hash` | Runtime attestation |
 
 ### Cloudflare Tunnel setup
