@@ -1,0 +1,42 @@
+rounding: { scale: 2, mode: half_up }
+
+list:
+  PLAN-BASIC: 19.90
+  PLAN-PRO:   49.00
+  ADDON-TEAM: 15.00
+  SKU-CPU-H:  0.10
+
+rules:
+  # 10% off PRO for enterprise tier
+  - name: tier-enterprise-pro-10
+    target: customer_tier
+    matcher: enterprise
+    action: discount_pct
+    value: 10
+    stackable: true
+    priority: 10
+
+  # 20% coupon for any PLAN-* SKU
+  - name: coupon-PLAN-20
+    target: coupon
+    matcher: PLAN20
+    action: discount_pct
+    value: 20
+    stackable: true
+    priority: 20
+
+  # 5% surcharge on CPU for specific region
+  - name: surcharge-cpu-region
+    target: sku
+    matcher: SKU-CPU-H
+    action: surcharge_pct
+    value: 5
+    stackable: false
+    priority: 30
+
+tax:
+  default_pct: 0.00
+  by_region:
+    BR: 0.12
+    BR-SP: 0.19
+    US: 0.00

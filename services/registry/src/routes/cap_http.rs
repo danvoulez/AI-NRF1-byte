@@ -368,10 +368,189 @@ async fn judge_handler(Json(req): Json<JudgeReq>) -> Json<JudgeResp> {
 }
 
 // ---------------------------------------------------------------------------
+// POST /v1/pricing/price
+// ---------------------------------------------------------------------------
+
+async fn pricing_price_handler(
+    Json(req): Json<cap_pricing::api::PriceReq>,
+) -> impl IntoResponse {
+    match cap_pricing::price_one(&req) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("{e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/pricing/quote (scenario pricing)
+// ---------------------------------------------------------------------------
+
+async fn pricing_quote_handler(
+    Json(req): Json<cap_pricing::api::ScenarioReq>,
+) -> impl IntoResponse {
+    match cap_pricing::price_scenario(&req) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("{e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/quote/create
+// ---------------------------------------------------------------------------
+
+async fn quote_create_handler(
+    Json(req): Json<cap_quote::api::QuoteCreateReq>,
+) -> impl IntoResponse {
+    match cap_quote::create_quote(&req) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("{e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /v1/quote/get/:id
+// ---------------------------------------------------------------------------
+
+async fn quote_get_handler(
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    match cap_quote::get_quote_by_id(id) {
+        Some(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "quote not found"})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/quote/reprice
+// ---------------------------------------------------------------------------
+
+async fn quote_reprice_handler(
+    Json(req): Json<cap_quote::api::QuoteRepriceReq>,
+) -> impl IntoResponse {
+    match cap_quote::reprice_quote(req.id) {
+        Some(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "quote not found"})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/invoice/create_from_quote
+// ---------------------------------------------------------------------------
+
+async fn invoice_create_handler(
+    Json(req): Json<cap_invoice::CreateFromQuoteReq>,
+) -> impl IntoResponse {
+    match cap_invoice::create_from_quote(&req) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => {
+            let code = if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (code, Json(json!({"error": format!("{e}")}))).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /v1/invoice/get/:id
+// ---------------------------------------------------------------------------
+
+async fn invoice_get_handler(
+    axum::extract::Path(id): axum::extract::Path<uuid::Uuid>,
+) -> impl IntoResponse {
+    match cap_invoice::get_invoice(id) {
+        Ok(Some(resp)) => {
+            (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "invoice not found"})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": format!("{e}")})),
+        )
+            .into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/invoice/approve
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct InvoiceActionReq {
+    id: uuid::Uuid,
+}
+
+async fn invoice_approve_handler(Json(req): Json<InvoiceActionReq>) -> impl IntoResponse {
+    match cap_invoice::approve_invoice(req.id) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => {
+            let code = if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (code, Json(json!({"error": format!("{e}")}))).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/invoice/reject
+// ---------------------------------------------------------------------------
+
+async fn invoice_reject_handler(Json(req): Json<InvoiceActionReq>) -> impl IntoResponse {
+    match cap_invoice::reject_invoice(req.id) {
+        Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(&resp).unwrap())).into_response(),
+        Err(e) => {
+            let code = if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (code, Json(json!({"error": format!("{e}")}))).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
 pub fn cap_http_router() -> Router {
+    // Load pricing config if PRICING_PATH is set
+    if let Ok(p) = std::env::var("PRICING_PATH") {
+        if let Err(e) = cap_pricing::load_pricing_from(&p) {
+            tracing::warn!("failed to load pricing config from {p}: {e}");
+        }
+    }
+    // Initialize invoice store
+    cap_invoice::init_store();
+
     Router::new()
         .route("/v1/intake", post(intake_handler))
         .route("/v1/permit/eval", post(permit_eval_handler))
@@ -380,4 +559,16 @@ pub fn cap_http_router() -> Router {
         .route("/v1/transport/derive", post(transport_derive_handler))
         .route("/v1/llm/complete", post(llm_complete_handler))
         .route("/v1/llm/judge", post(judge_handler))
+        // Pricing
+        .route("/v1/pricing/price", post(pricing_price_handler))
+        .route("/v1/pricing/quote", post(pricing_quote_handler))
+        // Quote
+        .route("/v1/quote/create", post(quote_create_handler))
+        .route("/v1/quote/get/:id", axum::routing::get(quote_get_handler))
+        .route("/v1/quote/reprice", post(quote_reprice_handler))
+        // Invoice
+        .route("/v1/invoice/create_from_quote", post(invoice_create_handler))
+        .route("/v1/invoice/get/:id", axum::routing::get(invoice_get_handler))
+        .route("/v1/invoice/approve", post(invoice_approve_handler))
+        .route("/v1/invoice/reject", post(invoice_reject_handler))
 }

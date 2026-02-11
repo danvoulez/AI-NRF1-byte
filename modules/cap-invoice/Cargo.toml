@@ -1,0 +1,15 @@
+[package]
+name = "cap-invoice"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Invoice stub from quote, FS persistence, ASK/ACK lifecycle"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+rust_decimal = { version = "1", features = ["serde"] }
+tracing = "0.1"
+cap-quote = { path = "../cap-quote" }

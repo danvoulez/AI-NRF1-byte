@@ -1,0 +1,15 @@
+[package]
+name = "cap-quote"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Quote lifecycle: create from pricing, reprice, get (in-memory)"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+rust_decimal = { version = "1", features = ["serde"] }
+dashmap = "6"
+cap-pricing = { path = "../cap-pricing" }

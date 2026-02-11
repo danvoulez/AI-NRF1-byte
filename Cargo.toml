@@ -19,6 +19,9 @@ members = [
   "modules/cap-permit",
   "modules/cap-transport",
   "modules/cap-llm",
+  "modules/cap-pricing",
+  "modules/cap-quote",
+  "modules/cap-invoice",
 
   # Domain crates
   "crates/receipt",
