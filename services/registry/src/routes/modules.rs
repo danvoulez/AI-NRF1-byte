@@ -16,7 +16,7 @@ use axum::{
 };
 
 #[cfg(feature = "modules")]
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "modules")]
 use std::sync::Arc;
@@ -49,9 +49,40 @@ pub struct ModulesState {
 #[cfg(feature = "modules")]
 #[derive(Deserialize)]
 struct RunRequest {
-    manifest_path: String,
+    manifest: serde_json::Value,
     env: serde_json::Value,
     tenant: String,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Serialize)]
+struct RunResponse {
+    ok: bool,
+    verdict: String,
+    stopped_at: Option<String>,
+    receipt_cid: String,
+    receipt_chain: Vec<String>,
+    url_rica: String,
+    hops: Vec<HopInfo>,
+    metrics: Vec<MetricEntry>,
+    artifacts: usize,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Serialize)]
+struct HopInfo {
+    step: String,
+    kind: String,
+    hash: String,
+    verified: bool,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Serialize)]
+struct MetricEntry {
+    step: String,
+    metric: String,
+    value: i64,
 }
 
 #[cfg(feature = "modules")]
@@ -59,22 +90,12 @@ async fn run_pipeline(
     State(state): State<Arc<ModulesState>>,
     Json(body): Json<RunRequest>,
 ) -> impl IntoResponse {
-    let manifest_raw = match std::fs::read_to_string(&body.manifest_path) {
-        Ok(s) => s,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": format!("cannot read manifest: {e}")})),
-            )
-                .into_response();
-        }
-    };
-    let manifest: module_runner::manifest::Manifest = match serde_json::from_str(&manifest_raw) {
+    let manifest: module_runner::manifest::Manifest = match serde_json::from_value(body.manifest) {
         Ok(m) => m,
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": format!("invalid manifest: {e}")})),
+                Json(serde_json::json!({"ok": false, "error": format!("invalid manifest: {e}")})),
             )
                 .into_response();
         }
@@ -85,7 +106,7 @@ async fn run_pipeline(
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": format!("invalid env: {e}")})),
+                Json(serde_json::json!({"ok": false, "error": format!("invalid env: {e}")})),
             )
                 .into_response();
         }
@@ -107,19 +128,58 @@ async fn run_pipeline(
     );
 
     match runner.run(&manifest, env).await {
-        Ok(result) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "verdict": format!("{:?}", result.verdict),
-                "stopped_at": result.stopped_at,
-                "receipts": result.receipts.len(),
-                "artifacts": result.artifacts.len(),
-            })),
-        )
-            .into_response(),
+        Ok(result) => {
+            let receipt_chain: Vec<String> = result
+                .receipts
+                .iter()
+                .map(|r| format!("b3:{}", hex::encode(r)))
+                .collect();
+            let receipt_cid = receipt_chain.first().cloned().unwrap_or_default();
+            let url_rica = if receipt_cid.is_empty() {
+                String::new()
+            } else {
+                format!("https://resolver.local/r/{receipt_cid}")
+            };
+
+            let hops: Vec<HopInfo> = manifest
+                .pipeline
+                .iter()
+                .zip(result.receipts.iter())
+                .map(|(step, hash)| HopInfo {
+                    step: step.step_id.clone(),
+                    kind: step.kind.clone(),
+                    hash: format!("b3:{}", hex::encode(hash)),
+                    verified: true,
+                })
+                .collect();
+
+            let metrics: Vec<MetricEntry> = result
+                .step_metrics
+                .iter()
+                .map(|(step, key, val)| MetricEntry {
+                    step: step.clone(),
+                    metric: key.clone(),
+                    value: *val,
+                })
+                .collect();
+
+            let resp = RunResponse {
+                ok: true,
+                verdict: format!("{:?}", result.verdict),
+                stopped_at: result.stopped_at,
+                receipt_cid,
+                receipt_chain,
+                url_rica,
+                hops,
+                metrics,
+                artifacts: result.artifacts.len(),
+            };
+
+            (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": format!("{e}")})),
+            Json(serde_json::json!({"ok": false, "error": format!("{e}")})),
         )
             .into_response(),
     }
@@ -138,6 +198,8 @@ fn build_cap_registry() -> module_runner::cap_registry::CapRegistry {
     reg.register(cap_llm::LlmModule);
     reg.register(cap_transport::TransportModule);
     reg.register(cap_enrich::EnrichModule);
+    reg.register(cap_pricing::PricingModule::default());
+    reg.register(cap_runtime::RuntimeModule::default());
     reg
 }
 

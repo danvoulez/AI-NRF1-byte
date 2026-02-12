@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 99%;
+    --foreground: 220 25% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 6%;
+    --primary: 220 25% 6%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 220 16% 96%;
+    --secondary-foreground: 220 25% 6%;
+    --muted: 220 16% 96%;
+    --muted-foreground: 220 10% 44%;
+    --accent: 220 16% 96%;
+    --accent-foreground: 220 25% 6%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 14% 90%;
+    --input: 220 14% 90%;
+    --ring: 220 25% 6%;
+    --chart-1: 142 71% 45%;
+    --chart-2: 38 92% 50%;
+    --chart-3: 0 72% 51%;
+    --chart-4: 220 14% 96%;
+    --chart-5: 220 10% 46%;
+    --radius: 0.625rem;
+
+    --sidebar-background: 220 25% 4%;
+    --sidebar-foreground: 220 10% 75%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 220 25% 4%;
+    --sidebar-accent: 220 18% 10%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 16% 14%;
+    --sidebar-ring: 220 20% 30%;
+
+    --ack: 142 71% 45%;
+    --ack-foreground: 0 0% 100%;
+    --ask: 38 92% 50%;
+    --ask-foreground: 0 0% 100%;
+    --nack: 0 72% 51%;
+    --nack-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+}

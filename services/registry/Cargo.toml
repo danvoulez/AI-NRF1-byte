@@ -41,6 +41,7 @@ cap-enrich = { path = "../../modules/cap-enrich", optional = true }
 cap-transport = { path = "../../modules/cap-transport", optional = true }
 cap-llm = { path = "../../modules/cap-llm", optional = true }
 cap-pricing = { path = "../../modules/cap-pricing", optional = true }
+cap-runtime = { path = "../../modules/cap-runtime", optional = true }
 cap-quote = { path = "../../crates/cap-quote", optional = true }
 cap-invoice = { path = "../../crates/cap-invoice", optional = true }
 
@@ -57,6 +58,7 @@ modules = [
   "cap-transport",
   "cap-llm",
   "cap-pricing",
+  "cap-runtime",
   "cap-quote",
   "cap-invoice",
 ]
