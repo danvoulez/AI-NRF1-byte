@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 #[cfg(feature = "modules")]
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 #[cfg(feature = "modules")]
 const MAX_EXECUTIONS: usize = 500;
@@ -55,13 +55,16 @@ pub struct ModulesState {
 #[cfg(feature = "modules")]
 #[derive(Default)]
 pub struct ExecutionStore {
-    executions: RwLock<VecDeque<StoredExecution>>,
+    /// Partitioned by (tenant, product) → ring buffer of executions
+    partitions: RwLock<HashMap<(String, String), VecDeque<StoredExecution>>>,
 }
 
 #[cfg(feature = "modules")]
 #[derive(Clone, Serialize)]
 struct StoredExecution {
     id: String,
+    tenant: String,
+    product: String,
     state: String,
     cid: String,
     title: String,
@@ -133,6 +136,7 @@ struct MetricEntry {
 #[cfg(feature = "modules")]
 async fn run_pipeline(
     State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
     Json(body): Json<RunRequest>,
 ) -> impl IntoResponse {
     let manifest: module_runner::manifest::Manifest = match serde_json::from_value(body.manifest) {
@@ -163,13 +167,14 @@ async fn run_pipeline(
         .clone()
         .unwrap_or(serde_json::Value::Null);
 
+    let tenant = &identity.tenant;
     let assets = module_runner::assets::MemoryResolver::new();
     let runner = module_runner::runner::Runner::new(
         &caps,
         Box::new(assets),
         &state.executor,
         io_bindings,
-        &body.tenant,
+        tenant,
     );
 
     let manifest_name = manifest.name.clone();
@@ -218,6 +223,8 @@ async fn run_pipeline(
 
             let stored = StoredExecution {
                 id: format!("exec_{}", now_millis()),
+                tenant: identity.tenant.clone(),
+                product: identity.product.clone(),
                 state: exec_state.to_string(),
                 cid: receipt_cid.clone(),
                 title: manifest_name,
@@ -231,7 +238,9 @@ async fn run_pipeline(
                 metrics: metrics.clone(),
                 artifacts: result.artifacts.len(),
             };
-            if let Ok(mut execs) = state.store.executions.write() {
+            let key = (identity.tenant.clone(), identity.product.clone());
+            if let Ok(mut parts) = state.store.partitions.write() {
+                let execs = parts.entry(key).or_default();
                 if execs.len() >= MAX_EXECUTIONS {
                     execs.pop_front();
                 }
@@ -267,8 +276,12 @@ async fn run_pipeline(
 #[cfg(feature = "modules")]
 async fn list_executions(
     State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
 ) -> impl IntoResponse {
-    let execs = state.store.executions.read().unwrap();
+    let key = (identity.tenant.clone(), identity.product.clone());
+    let parts = state.store.partitions.read().unwrap();
+    let empty = VecDeque::new();
+    let execs = parts.get(&key).unwrap_or(&empty);
     let list: Vec<serde_json::Value> = execs.iter().rev().map(|e| {
         serde_json::json!({
             "id": e.id,
@@ -290,11 +303,15 @@ async fn list_executions(
 #[cfg(feature = "modules")]
 async fn get_receipt(
     State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
     Path(cid): Path<String>,
 ) -> impl IntoResponse {
     let cid = urlencoding::decode(&cid).unwrap_or(std::borrow::Cow::Borrowed(&cid)).into_owned();
-    let execs = state.store.executions.read().unwrap();
-    let exec = execs.iter().find(|e| e.cid == cid);
+    let key = (identity.tenant.clone(), identity.product.clone());
+    let parts = state.store.partitions.read().unwrap();
+    let exec = parts.get(&key).and_then(|execs| execs.iter().find(|e| e.cid == cid)).cloned();
+    drop(parts);
+    let exec = exec.as_ref();
     match exec {
         Some(e) => {
             let sirp_steps = ["INTENT", "DELIVERY", "EXECUTION", "RESULT"];
@@ -358,8 +375,12 @@ async fn get_receipt(
 #[cfg(feature = "modules")]
 async fn get_metrics(
     State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
 ) -> impl IntoResponse {
-    let execs = state.store.executions.read().unwrap();
+    let key = (identity.tenant.clone(), identity.product.clone());
+    let parts = state.store.partitions.read().unwrap();
+    let empty = VecDeque::new();
+    let execs = parts.get(&key).unwrap_or(&empty);
     let total = execs.len();
     let ack_count = execs.iter().filter(|e| e.state == "ACK").count();
     let ack_pct = if total > 0 { (ack_count as f64 / total as f64) * 100.0 } else { 0.0 };
@@ -470,12 +491,15 @@ pub fn modules_router(
     modules_state: Arc<ModulesState>,
     permit_state: Arc<PermitState>,
 ) -> Router {
-    let run_router = Router::new()
+    let api_v0 = Router::new()
         .route("/api/v0/run", post(run_pipeline))
         .route("/api/v0/executions", get(list_executions))
         .route("/api/v0/receipts/:cid", get(get_receipt))
         .route("/api/v0/metrics", get(get_metrics))
+        .layer(axum::middleware::from_fn(
+            crate::middleware::identity::require_identity,
+        ))
         .with_state(modules_state);
 
-    run_router.merge(permit_router(permit_state))
+    api_v0.merge(permit_router(permit_state))
 }

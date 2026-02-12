@@ -1,4 +1,4 @@
-import { REGISTRY_URL } from "./env"
+import { REGISTRY_URL, TENANT, PRODUCT } from "./env"
 import type {
   Execution,
   ExecutionState,
@@ -60,7 +60,11 @@ export interface RunResponse {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${REGISTRY_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant": TENANT,
+      "X-Product": PRODUCT,
+    },
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -71,7 +75,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${REGISTRY_URL}${path}`)
+  const res = await fetch(`${REGISTRY_URL}${path}`, {
+    headers: {
+      "X-Tenant": TENANT,
+      "X-Product": PRODUCT,
+    },
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || `HTTP ${res.status}`)
