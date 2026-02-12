@@ -20,8 +20,6 @@ members = [
   "modules/cap-transport",
   "modules/cap-llm",
   "modules/cap-pricing",
-  "modules/cap-quote",
-  "modules/cap-invoice",
   "modules/cap-runtime",
 
   # Domain crates
@@ -38,6 +36,8 @@ members = [
   "crates/ubl-policy",
   "crates/ubl-replay",
   "crates/receipt-idem",
+  "crates/cap-quote",
+  "crates/cap-invoice",
 
   # Service layer (brand = ubl-*)
   "crates/ubl-auth",

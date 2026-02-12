@@ -58,11 +58,10 @@ impl Capability for RuntimeModule {
             .and_then(|k| env_json.get(k)).and_then(|v| v.get("cid"))
             .and_then(|v| v.as_str()).map(|s| s.to_string());
 
+        // Use injected timestamp from meta (pure — no SystemTime::now())
+        let ts_secs = input.meta.ts_nanos / 1_000_000_000;
         let nonce = format!("n-{}", trace_id);
-        let exp   = (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0) + 600) as i64;
+        let exp = ts_secs + 600;
 
         let plan = json!({
             "executor": cfg.executor,
@@ -80,11 +79,11 @@ impl Capability for RuntimeModule {
             "plan_cid": plan_cid_str, "plan": plan
         });
 
+        // HMAC key binding: the runtime's EffectExecutor resolves the env var.
+        // We record the binding name in the body so the executor can sign it.
+        // The module itself does NOT read env vars (pure execute contract).
         if let Some(key_env) = &cfg.hmac_key_env {
-            if let Ok(k) = std::env::var(key_env) {
-                let tag = hmac_sha256::HMAC::mac(serde_json::to_vec(&body)?, k.as_bytes());
-                body["hmac"] = serde_json::Value::String(hex::encode(tag));
-            }
+            body["hmac_key_binding"] = serde_json::Value::String(key_env.clone());
         }
 
         // Compute real CID bytes for Artifact
