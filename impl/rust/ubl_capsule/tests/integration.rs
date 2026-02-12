@@ -405,6 +405,67 @@ fn non_ascii_did_rejected_in_json_view() {
 }
 
 // =========================================================================
+// Canon 2,6: capsule rejects floats and non-i64 numbers in env.body
+// =========================================================================
+
+#[test]
+fn capsule_rejects_float_in_body() {
+    let (sk, _) = keypair();
+    let mut c = make_capsule("ATTEST", serde_json::json!({"price": 3.14}));
+    assert!(seal::sign(&mut c, &sk).is_err(), "Canon 2: no floats, period");
+}
+
+#[test]
+fn capsule_rejects_exponent_number_in_body() {
+    let (sk, _) = keypair();
+    // serde_json parses 1e3 as f64, not i64
+    let mut c = make_capsule("ATTEST", serde_json::json!({"count": 1e3}));
+    assert!(seal::sign(&mut c, &sk).is_err(), "Canon 2: 1e3 is a float");
+}
+
+#[test]
+fn capsule_rejects_u64_overflow_in_body() {
+    let (sk, _) = keypair();
+    // 9223372036854775808 = i64::MAX + 1, parsed as u64 by serde_json
+    let body: serde_json::Value =
+        serde_json::from_str(r#"{"big": 9223372036854775808}"#).unwrap();
+    let mut c = make_capsule("ATTEST", body);
+    assert!(seal::sign(&mut c, &sk).is_err(), "Canon 2: u64 overflow → not i64");
+}
+
+#[test]
+fn capsule_accepts_valid_i64_in_body() {
+    let (sk, _) = keypair();
+    let mut c = make_capsule("ATTEST", serde_json::json!({"count": 42, "neg": -1, "max": 9223372036854775807i64}));
+    assert!(seal::sign(&mut c, &sk).is_ok(), "valid i64 must be accepted");
+}
+
+// =========================================================================
+// Canon 4: $bytes roundtrip in json_view
+// =========================================================================
+
+#[test]
+fn bytes_always_become_dollar_bytes_hex() {
+    use nrf_core::Value;
+    let v = Value::Bytes(vec![0x00, 0xFF]);
+    let j = ubl_json_view::to_json(&v);
+    assert_eq!(j, serde_json::json!({"$bytes": "00ff"}));
+}
+
+#[test]
+fn uppercase_hex_in_dollar_bytes_rejected() {
+    let j = serde_json::json!({"$bytes": "DEAD"});
+    assert!(ubl_json_view::from_json(&j).is_err(), "Canon 4: lowercase hex only");
+}
+
+#[test]
+fn b3_prefix_string_stays_string_in_json_view() {
+    let j = serde_json::json!("b3:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let v = ubl_json_view::from_json(&j).unwrap();
+    assert!(matches!(v, nrf_core::Value::String(_)), "Canon 4: b3: is a string, not bytes");
+}
+
+// =========================================================================
 // Timestamps with and without fraction
 // =========================================================================
 
