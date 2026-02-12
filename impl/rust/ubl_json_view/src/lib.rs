@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn b64_prefix_string_is_just_a_string() {
         // Canon 4: "b64:..." is a plain string, NOT bytes
-        let j = serde_json::Value::String("b64:AAAA".into());
+        let j = serde_json::Value::String("b64:AAAA".into()); // Canon 4: must stay string
         let result = from_json(&j).unwrap();
         assert!(matches!(result, Value::String(_)));
     }

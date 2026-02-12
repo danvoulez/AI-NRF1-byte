@@ -136,6 +136,58 @@ jobs:
         working-directory: impl/rust/nrf-core/fuzz
         run: cargo fuzz build
 
+  canon-guard:
+    name: Canon regression guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Ghost prefix check (b64:/0x: as bytes encoding)"
+        run: |
+          # Canon 4: bytes must use {"$bytes":"<hex>"}, never "b64:" or "0x:" prefixes.
+          # "b3:" is legitimate as a CID string format, so we only check b64:/0x:.
+          HITS=$(grep -rn --include='*.rs' \
+            -e '"b64:' -e '"0x:' \
+            --exclude-dir=target \
+            . \
+            | grep -v '// Canon\|// legacy\|// old format\|#\[doc\|///\|//!\|is_just_a_string\|stays_string' \
+            || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::Ghost byte prefixes found in Rust source (Canon 4 violation):"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "✓ No ghost byte prefixes found"
+
+      - name: "No Value::Bytes from b3: prefix parsing"
+        run: |
+          # Ensure no code path converts "b3:..." strings into Value::Bytes.
+          # The b3: prefix is a CID string, not a bytes encoding.
+          HITS=$(grep -rn --include='*.rs' \
+            -e 'starts_with("b3:").*Bytes\|starts_with("b64:").*Bytes\|starts_with("0x:").*Bytes' \
+            --exclude-dir=target \
+            . || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::Prefix-to-Bytes conversion found (Canon 4 violation):"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "✓ No prefix-to-Bytes conversions found"
+
+      - name: "No float Value variants"
+        run: |
+          # Canon 2: NRF has no float type. Ensure nobody adds Value::Float or Value::F64.
+          HITS=$(grep -rn --include='*.rs' \
+            -e 'Value::Float' -e 'Value::F64' -e 'Value::F32' \
+            --exclude-dir=target \
+            . || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::Float Value variant found (Canon 2 violation):"
+            echo "$HITS"
+            exit 1
+          fi
+          echo "✓ No float Value variants found"
+
   workspace-full:
     name: Workspace (sanity)
     runs-on: ubuntu-latest
@@ -187,7 +239,7 @@ jobs:
   collect-logs:
     name: Failure artifacts
     runs-on: ubuntu-latest
-    needs: [base, modules, python-differential, wasm, fuzz-smoke, workspace-full, registry-integration]
+    needs: [base, modules, python-differential, wasm, fuzz-smoke, canon-guard, workspace-full, registry-integration]
     if: failure()
     steps:
       - uses: actions/checkout@v4
