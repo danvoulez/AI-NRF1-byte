@@ -158,3 +158,91 @@ fn run_stub(manifest: serde_yaml::Value) -> Result<serde_json::Value> {
         "stopped_at": null,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn yaml(s: &str) -> serde_yaml::Value {
+        serde_yaml::from_str(s).unwrap()
+    }
+
+    #[test]
+    fn translate_basic_manifest() {
+        let m = yaml(r#"
+            name: test-product
+            pipeline:
+              - use: cap-intake
+                with: { mapping: [] }
+              - use: cap-policy
+                with: { rules: [] }
+        "#);
+        let out = yaml_to_runner_manifest(&m).unwrap();
+        assert_eq!(out["name"], "test-product");
+        assert_eq!(out["v"], "1");
+        let steps = out["pipeline"].as_array().unwrap();
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0]["kind"], "cap-intake");
+        assert_eq!(steps[0]["version"], "*");
+        assert_eq!(steps[1]["kind"], "cap-policy");
+        assert!(steps[0]["step_id"].as_str().unwrap().contains("cap-intake"));
+    }
+
+    #[test]
+    fn translate_resolves_aliases() {
+        let m = yaml(r#"
+            name: alias-test
+            pipeline:
+              - use: policy.light
+              - use: cap-structure
+              - use: cap-llm-engine
+              - use: cap-llm-smart
+              - use: policy.hardening
+        "#);
+        let out = yaml_to_runner_manifest(&m).unwrap();
+        let steps = out["pipeline"].as_array().unwrap();
+        assert_eq!(steps[0]["kind"], "cap-policy");
+        assert_eq!(steps[1]["kind"], "cap-intake");
+        assert_eq!(steps[2]["kind"], "cap-llm");
+        assert_eq!(steps[3]["kind"], "cap-llm");
+        assert_eq!(steps[4]["kind"], "cap-policy");
+        // step_id preserves original alias name
+        assert!(steps[0]["step_id"].as_str().unwrap().contains("policy.light"));
+    }
+
+    #[test]
+    fn translate_missing_use_errors() {
+        let m = yaml(r#"
+            name: bad
+            pipeline:
+              - with: { x: 1 }
+        "#);
+        assert!(yaml_to_runner_manifest(&m).is_err());
+    }
+
+    #[test]
+    fn translate_empty_pipeline() {
+        let m = yaml("name: empty\npipeline: []");
+        let out = yaml_to_runner_manifest(&m).unwrap();
+        assert_eq!(out["pipeline"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn translate_step_without_with_gets_empty_config() {
+        let m = yaml(r#"
+            name: no-with
+            pipeline:
+              - use: cap-enrich
+        "#);
+        let out = yaml_to_runner_manifest(&m).unwrap();
+        let steps = out["pipeline"].as_array().unwrap();
+        assert_eq!(steps[0]["config"], json!({}));
+    }
+
+    #[test]
+    fn resolve_alias_passthrough() {
+        assert_eq!(resolve_alias("cap-intake"), "cap-intake");
+        assert_eq!(resolve_alias("cap-transport"), "cap-transport");
+        assert_eq!(resolve_alias("unknown-cap"), "unknown-cap");
+    }
+}

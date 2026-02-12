@@ -1,0 +1,64 @@
+name: Products pipeline (stub + runner-real)
+
+on:
+  push:
+    paths:
+      - "tools/ubl-cli/**"
+      - "modules/**"
+      - "crates/module-runner/**"
+      - "crates/modules-core/**"
+      - "manifests/**"
+      - "Cargo.*"
+  pull_request:
+    paths:
+      - "tools/ubl-cli/**"
+      - "modules/**"
+      - "crates/module-runner/**"
+      - "crates/modules-core/**"
+      - "manifests/**"
+
+jobs:
+  test-stub:
+    name: "CLI tests (stub mode)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p ubl-cli -p cap-intake -p cap-policy -p cap-enrich -p cap-transport -p cap-llm -p cap-runtime -p cap-pricing -p module-runner --locked
+
+  test-runner-real:
+    name: "CLI tests (runner-real)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p ubl-cli --features runner-real --locked
+
+  smoke-products:
+    name: "E2E smoke: 4 products"
+    runs-on: ubuntu-latest
+    needs: [test-runner-real]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p ubl-cli --features runner-real --locked
+      - name: "tdln policy"
+        run: ./target/debug/ubl tdln policy --var data=hello | jq -e '.ok == true'
+      - name: "tdln runtime"
+        run: ./target/debug/ubl tdln runtime --var sourceData=test --var userCode=print | jq -e '.ok == true'
+      - name: "llm engine"
+        run: ./target/debug/ubl llm engine --var prompt=hello | jq -e '.ok == true'
+      - name: "llm smart"
+        run: ./target/debug/ubl llm smart --var prompt=hello | jq -e '.ok == true'
+
+  test-registry:
+    name: "Registry integration"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p registry --locked

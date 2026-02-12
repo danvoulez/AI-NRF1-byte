@@ -139,3 +139,89 @@ impl Capability for IntakeModule {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use modules_core::{AssetResolver, ExecutionMeta};
+    use std::collections::BTreeMap;
+
+    #[derive(Clone)]
+    struct NullResolver;
+    impl AssetResolver for NullResolver {
+        fn get(&self, _cid: &modules_core::Cid) -> anyhow::Result<modules_core::Asset> {
+            anyhow::bail!("no assets")
+        }
+        fn box_clone(&self) -> Box<dyn AssetResolver> {
+            Box::new(self.clone())
+        }
+    }
+
+    fn make_input(env: nrf1::Value, config: Value) -> modules_core::CapInput {
+        modules_core::CapInput {
+            env,
+            config,
+            assets: Box::new(NullResolver),
+            prev_receipts: vec![],
+            meta: ExecutionMeta {
+                run_id: "test".into(),
+                tenant: None,
+                trace_id: None,
+                ts_nanos: 0,
+            },
+        }
+    }
+
+    fn nrf_map(pairs: &[(&str, &str)]) -> nrf1::Value {
+        let mut m = BTreeMap::new();
+        for (k, v) in pairs {
+            m.insert(k.to_string(), nrf1::Value::String(v.to_string()));
+        }
+        nrf1::Value::Map(m)
+    }
+
+    // Regression: single-segment set inserts key, doesn't replace root
+    #[test]
+    fn set_single_key_inserts_into_root() {
+        let env = nrf_map(&[("data", "hello")]);
+        let cfg = json!({ "mapping": [{ "from": "data", "to": "payload" }] });
+        let input = make_input(env, cfg);
+        let out = IntakeModule.execute(input).unwrap();
+        let j = ubl_json_view::to_json(out.new_env.as_ref().unwrap());
+        assert_eq!(j["payload"], "hello");
+        assert_eq!(j["data"], "hello"); // original key preserved
+    }
+
+    // Nested path creates intermediate objects
+    #[test]
+    fn set_nested_creates_intermediates() {
+        let env = nrf_map(&[("x", "1")]);
+        let cfg = json!({ "mapping": [{ "from": "x", "to": "a.b.c" }] });
+        let input = make_input(env, cfg);
+        let out = IntakeModule.execute(input).unwrap();
+        let j = ubl_json_view::to_json(out.new_env.as_ref().unwrap());
+        assert_eq!(j["a"]["b"]["c"], "1");
+    }
+
+    // Defaults fill missing keys
+    #[test]
+    fn defaults_fill_missing() {
+        let env = nrf1::Value::Map(BTreeMap::new());
+        let cfg = json!({ "defaults": { "status": "pending" } });
+        let input = make_input(env, cfg);
+        let out = IntakeModule.execute(input).unwrap();
+        let j = ubl_json_view::to_json(out.new_env.as_ref().unwrap());
+        assert_eq!(j["status"], "pending");
+    }
+
+    // Mapping from missing key produces null
+    #[test]
+    fn missing_from_produces_null() {
+        let env = nrf_map(&[("a", "1")]);
+        let cfg = json!({ "mapping": [{ "from": "nonexistent", "to": "dest" }] });
+        let input = make_input(env, cfg);
+        let out = IntakeModule.execute(input).unwrap();
+        let j = ubl_json_view::to_json(out.new_env.as_ref().unwrap());
+        assert!(j["dest"].is_null());
+    }
+}

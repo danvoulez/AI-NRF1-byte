@@ -53,9 +53,20 @@ pub fn router() -> Router<Arc<AppState>> {
 async fn create_receipt(
     Path((_app, _tenant)): Path<(String, String)>,
     State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
     Json(_req): Json<CreateReceiptReq>,
 ) -> Result<Json<ReceiptResp>, (axum::http::StatusCode, String)> {
+    // Auth gate: require Bearer token before anything else
+    match headers.get(axum::http::header::AUTHORIZATION) {
+        Some(v) if v.to_str().unwrap_or("").starts_with("Bearer ") => {}
+        _ => {
+            return Err((
+                axum::http::StatusCode::UNAUTHORIZED,
+                "missing or invalid Authorization: Bearer <token>".into(),
+            ));
+        }
+    }
+
     Err((
         axum::http::StatusCode::NOT_IMPLEMENTED,
         "receipt pipeline not yet implemented. Awaiting capability modules (cap-intake, cap-policy, etc.)".into(),

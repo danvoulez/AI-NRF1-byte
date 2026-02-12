@@ -87,6 +87,25 @@ async fn test_create_receipt_without_auth_returns_401() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+#[tokio::test]
+async fn test_create_receipt_with_auth_returns_501() {
+    let base = start_server().await;
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{base}/v1/lab512/dev/receipts"))
+        .header("Authorization", "Bearer test-token-123")
+        .json(&json!({
+            "body": {"test": true},
+            "act": "ATTEST",
+            "subject": "b3:0000000000000000000000000000000000000000000000000000000000000000"
+        }))
+        .send()
+        .await
+        .unwrap();
+    // Auth passes, but pipeline is not yet implemented → 501
+    assert_eq!(resp.status(), StatusCode::NOT_IMPLEMENTED);
+}
+
 // ==========================================================================
 // MODULE tests — will be added when capability modules are implemented
 // ==========================================================================
