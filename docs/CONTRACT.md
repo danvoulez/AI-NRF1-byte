@@ -170,6 +170,78 @@ Dashboard statistics.
 
 ---
 
+### `GET /api/v0/audits`
+
+Audit log derived from executions (scoped to caller's tenant+product).
+
+**Response** `200 OK`:
+```json
+[
+  {
+    "id": "audit_exec_1707750000000",
+    "timestamp": "2026-02-12T13:00:00Z",
+    "action": "pipeline.allow",
+    "actor": "system",
+    "resource": "cap-intake-demo",
+    "cid": "b3:abc123...",
+    "state": "ACK",
+    "detail": "Verdict: Allow, Hops: 1"
+  }
+]
+```
+
+---
+
+### `GET /api/v0/evidence`
+
+Evidence items derived from receipt chains (scoped to caller's tenant+product).
+
+**Response** `200 OK`:
+```json
+[
+  {
+    "cid": "b3:abc123...",
+    "url": "https://resolver.local/e/b3:abc123...",
+    "status": "fetched",
+    "mime": "application/json",
+    "execution_id": "exec_1707750000000",
+    "title": "cap-intake-demo",
+    "timestamp": "2026-02-12T13:00:00Z"
+  }
+]
+```
+
+---
+
+### `GET /api/v0/policies`
+
+Active policy packs for the caller's tenant+product.
+
+**Response** `200 OK`:
+```json
+[
+  {
+    "id": "pol_default_compliance",
+    "name": "Default Compliance Pack",
+    "description": "Base compliance rules for all pipelines",
+    "enabled": true,
+    "rules": 12,
+    "tenant": "default",
+    "product": "tdln"
+  }
+]
+```
+
+---
+
+### `GET /r/:cid`
+
+Short resolver redirect. No identity headers required.
+
+**Response** `307 Temporary Redirect` → `Location: /console/r/:cid`
+
+---
+
 ## Non-versioned endpoints
 
 These are infrastructure endpoints, not part of the product API contract:
@@ -180,6 +252,17 @@ These are infrastructure endpoints, not part of the product API contract:
 | `GET /healthz` | Alias for `/health` |
 | `GET /readyz` | Alias for `/health` |
 | `GET /version` | `{"version","git_sha","build_ts","modules"}` |
+| `GET /r/:cid` | Resolver redirect → `/console/r/:cid` |
+
+---
+
+## Identity headers
+
+All `/api/v0/*` endpoints require:
+- `X-Tenant` — tenant slug (e.g. `default`)
+- `X-Product` — product slug (e.g. `tdln`)
+
+Returns `400 Bad Request` if either is missing.
 
 ---
 
@@ -195,6 +278,6 @@ These are infrastructure endpoints, not part of the product API contract:
 ## Future (v1)
 
 The following will be added before graduating to `v1`:
-- `X-Tenant` + `X-Product` headers required on all `/api/*` calls
 - API key authentication per product
-- `GET /api/v0/audits`, `GET /api/v0/evidence`, `GET /api/v0/policies`
+- Rate limiting per product
+- Persistent storage (replace in-memory store with Postgres/ledger)

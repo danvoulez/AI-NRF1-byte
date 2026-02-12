@@ -401,6 +401,111 @@ async fn get_metrics(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/v0/audits — audit log derived from executions
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn get_audits(
+    State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
+) -> impl IntoResponse {
+    let key = (identity.tenant.clone(), identity.product.clone());
+    let parts = state.store.partitions.read().unwrap();
+    let empty = VecDeque::new();
+    let execs = parts.get(&key).unwrap_or(&empty);
+    let entries: Vec<serde_json::Value> = execs.iter().rev().map(|e| {
+        serde_json::json!({
+            "id": format!("audit_{}", e.id),
+            "timestamp": e.timestamp,
+            "action": format!("pipeline.{}", e.verdict.to_lowercase()),
+            "actor": "system",
+            "resource": e.title,
+            "cid": e.cid,
+            "state": e.state,
+            "detail": format!("Verdict: {}, Hops: {}", e.verdict, e.hops.len()),
+        })
+    }).collect();
+    (StatusCode::OK, Json(serde_json::json!(entries))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v0/evidence — evidence items derived from receipt chains
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn get_evidence(
+    State(state): State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
+) -> impl IntoResponse {
+    let key = (identity.tenant.clone(), identity.product.clone());
+    let parts = state.store.partitions.read().unwrap();
+    let empty = VecDeque::new();
+    let execs = parts.get(&key).unwrap_or(&empty);
+    let items: Vec<serde_json::Value> = execs.iter().rev().flat_map(|e| {
+        e.receipt_chain.iter().map(move |cid| {
+            serde_json::json!({
+                "cid": cid,
+                "url": format!("https://resolver.local/e/{cid}"),
+                "status": "fetched",
+                "mime": "application/json",
+                "execution_id": e.id,
+                "title": e.title,
+                "timestamp": e.timestamp,
+            })
+        })
+    }).collect();
+    (StatusCode::OK, Json(serde_json::json!(items))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/v0/policies — policy packs (stub, returns active policies)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn get_policies(
+    _state: State<Arc<ModulesState>>,
+    axum::Extension(identity): axum::Extension<crate::middleware::identity::ProductIdentity>,
+) -> impl IntoResponse {
+    // Policies are configuration, not derived from executions.
+    // Return a default set; real implementation will read from config/DB.
+    (StatusCode::OK, Json(serde_json::json!([
+        {
+            "id": "pol_default_compliance",
+            "name": "Default Compliance Pack",
+            "description": "Base compliance rules for all pipelines",
+            "enabled": true,
+            "rules": 12,
+            "tenant": identity.tenant,
+            "product": identity.product,
+        },
+        {
+            "id": "pol_data_retention",
+            "name": "Data Retention Policy",
+            "description": "90-day retention for all execution artifacts",
+            "enabled": true,
+            "rules": 4,
+            "tenant": identity.tenant,
+            "product": identity.product,
+        }
+    ]))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /r/:cid — short resolver redirect (no identity required)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn resolve_cid(Path(cid): Path<String>) -> impl IntoResponse {
+    let decoded = urlencoding::decode(&cid).unwrap_or(std::borrow::Cow::Borrowed(&cid));
+    let location = format!("/console/r/{}", decoded);
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [(axum::http::header::LOCATION, location)],
+    )
+        .into_response()
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -496,10 +601,17 @@ pub fn modules_router(
         .route("/api/v0/executions", get(list_executions))
         .route("/api/v0/receipts/:cid", get(get_receipt))
         .route("/api/v0/metrics", get(get_metrics))
+        .route("/api/v0/audits", get(get_audits))
+        .route("/api/v0/evidence", get(get_evidence))
+        .route("/api/v0/policies", get(get_policies))
         .layer(axum::middleware::from_fn(
             crate::middleware::identity::require_identity,
         ))
         .with_state(modules_state);
 
-    api_v0.merge(permit_router(permit_state))
+    // /r/:cid — short resolver redirect (no identity required)
+    let resolver = Router::new()
+        .route("/r/:cid", get(resolve_cid));
+
+    api_v0.merge(permit_router(permit_state)).merge(resolver)
 }
