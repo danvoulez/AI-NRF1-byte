@@ -100,7 +100,7 @@ fn roundtrip_bytes_empty() {
 fn id_stable_add_remove_receipts() {
     let (sk, _vk) = keypair();
     let mut c = make_capsule("ATTEST", serde_json::json!({"test": true}));
-    seal::sign(&mut c, &sk);
+    seal::sign(&mut c, &sk).unwrap();
     let id_original = c.id;
 
     // Add 3 receipts
@@ -119,11 +119,11 @@ fn id_stable_add_remove_receipts() {
         prev = r.id;
         c.receipts.push(r);
     }
-    assert_eq!(ubl_capsule::compute_id(&c), id_original);
+    assert_eq!(ubl_capsule::compute_id(&c).unwrap(), id_original);
 
     // Remove all receipts
     c.receipts.clear();
-    assert_eq!(ubl_capsule::compute_id(&c), id_original);
+    assert_eq!(ubl_capsule::compute_id(&c).unwrap(), id_original);
 }
 
 // =========================================================================
@@ -134,7 +134,7 @@ fn id_stable_add_remove_receipts() {
 fn valid_chain_passes() {
     let (author_sk, _) = keypair();
     let mut c = make_capsule("ATTEST", serde_json::json!({"data": 1}));
-    seal::sign(&mut c, &author_sk);
+    seal::sign(&mut c, &author_sk).unwrap();
 
     let mut keys = vec![];
     let mut prev = [0u8; 32];
@@ -164,7 +164,7 @@ fn valid_chain_passes() {
 fn reorder_chain_fails() {
     let (author_sk, _) = keypair();
     let mut c = make_capsule("ATTEST", serde_json::json!({"data": 1}));
-    seal::sign(&mut c, &author_sk);
+    seal::sign(&mut c, &author_sk).unwrap();
 
     let mut keys = vec![];
     let mut prev = [0u8; 32];
@@ -195,7 +195,7 @@ fn reorder_chain_fails() {
 fn remove_middle_hop_fails() {
     let (author_sk, _) = keypair();
     let mut c = make_capsule("ATTEST", serde_json::json!({"data": 1}));
-    seal::sign(&mut c, &author_sk);
+    seal::sign(&mut c, &author_sk).unwrap();
 
     let mut keys = vec![];
     let mut prev = [0u8; 32];
@@ -232,7 +232,7 @@ fn pipeline_attest_then_evaluate() {
 
     // Step 1: ATTEST
     let mut attest = make_capsule("ATTEST", serde_json::json!({"doc": "insurance-policy-123"}));
-    seal::sign(&mut attest, &sk);
+    seal::sign(&mut attest, &sk).unwrap();
     assert!(seal::verify(&attest, &vk).is_ok());
     let attest_cid = format!("b3:{}", hex::encode(attest.id));
 
@@ -243,7 +243,7 @@ fn pipeline_attest_then_evaluate() {
     evaluate.env.links = Some(Links {
         prev: Some(attest_cid.clone()),
     });
-    seal::sign(&mut evaluate, &sk);
+    seal::sign(&mut evaluate, &sk).unwrap();
     assert!(seal::verify(&evaluate, &vk).is_ok());
 
     // Verify the link
@@ -268,7 +268,7 @@ fn end_to_end_capsule_flow() {
     let mut cap = make_capsule("ATTEST", serde_json::json!({"doc": "policy-123"}));
     cap.hdr.exp = Some(seal::now_nanos_i64().saturating_add(60_000_000_000)); // +60s
 
-    seal::sign(&mut cap, &author_sk);
+    seal::sign(&mut cap, &author_sk).unwrap();
     let id_before = cap.id;
     assert!(seal::verify(&cap, &author_vk).is_ok());
 
@@ -296,7 +296,7 @@ fn end_to_end_capsule_flow() {
     assert!(verify_chain(&cap.id, &cap.receipts, &resolve).is_ok());
 
     // ID must be stable regardless of receipts
-    assert_eq!(ubl_capsule::compute_id(&cap), id_before);
+    assert_eq!(ubl_capsule::compute_id(&cap).unwrap(), id_before);
 
     // JSON serialize/deserialize roundtrip keeps seal valid
     let json = serde_json::to_string(&cap).unwrap();

@@ -377,7 +377,8 @@ fn cmd_sign(input: &str, sk_path: &PathBuf, output: &str) -> Result<()> {
     let mut capsule: ubl_capsule::Capsule =
         serde_json::from_str(&json_str).context("Err.Parse.InvalidCapsuleJSON")?;
     let sk = load_signing_key(sk_path)?;
-    ubl_capsule::seal::sign(&mut capsule, &sk);
+    ubl_capsule::seal::sign(&mut capsule, &sk)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let out = serde_json::to_string_pretty(&capsule)?;
     write_output(output, out.as_bytes())?;
     Ok(())

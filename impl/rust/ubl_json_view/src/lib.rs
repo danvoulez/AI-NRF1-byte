@@ -3,15 +3,12 @@
 //! Provides `to_json` and `from_json` for lossless, canonical round-tripping
 //! between `nrf_core::Value` (bytes) and `serde_json::Value` (JSON).
 //!
-//! Prefixes:
-//!   Bytes(32)      → `"b3:<hex>"`
-//!   Bytes(16 | 64) → `"b64:<base64>"`
-//!   Bytes(other)   → `{"$bytes": "<base64>"}`
+//! Canon 4: The ONLY accepted JSON form for bytes is `{"$bytes": "<lowercase hex>"}`.
+//! No base64. No b3: prefix. No b64: prefix. No exceptions.
 //!
 //! Integers: only Int64 (no floats). Decimals as canonical strings.
 //! Strings: NFC, no BOM, ASCII-only enforced for DID/KID fields.
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use nrf_core::Value;
 use regex::Regex;
 use std::collections::BTreeMap;
@@ -37,10 +34,8 @@ pub enum JsonViewError {
     OddHex,
     #[error("Err.JsonView.BadHex: invalid hex character")]
     BadHex,
-    #[error("Err.JsonView.BadBase64: {0}")]
-    BadBase64(String),
-    #[error("Err.JsonView.BadPrefix: unknown bytes prefix")]
-    BadPrefix,
+    #[error("Err.JsonView.BadBytesObject: {0}")]
+    BadBytesObject(String),
     #[error("Err.JsonView.NotASCII: DID/KID fields must be ASCII")]
     NotASCII,
     #[error("Err.JsonView.InvalidDecimal: {0}")]
@@ -57,8 +52,7 @@ pub enum JsonViewError {
 // Regex patterns
 // ---------------------------------------------------------------------------
 
-static RE_B3: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^b3:[0-9a-f]{64}$").unwrap());
-static RE_B64_PREFIX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^b64:").unwrap());
+static RE_HEX_LOWER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9a-f]*$").unwrap());
 static RE_DECIMAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$").unwrap());
 
@@ -89,23 +83,11 @@ pub fn nrf_bytes_to_json(bytes: &[u8]) -> Result<serde_json::Value, JsonViewErro
     Ok(to_json(&v))
 }
 
+/// Canon 4: ALL bytes → {"$bytes": "<lowercase hex>"}. No exceptions.
 fn bytes_to_json(b: &[u8]) -> serde_json::Value {
-    match b.len() {
-        32 => {
-            // Bytes(32) → "b3:<hex>"
-            serde_json::Value::String(format!("b3:{}", nrf_core::encode_hex_lower(b)))
-        }
-        16 | 64 => {
-            // Bytes(16|64) → "b64:<base64>"
-            serde_json::Value::String(format!("b64:{}", B64.encode(b)))
-        }
-        _ => {
-            // Other → {"$bytes": "<base64>"}
-            let mut obj = serde_json::Map::new();
-            obj.insert("$bytes".into(), serde_json::Value::String(B64.encode(b)));
-            serde_json::Value::Object(obj)
-        }
-    }
+    let mut obj = serde_json::Map::new();
+    obj.insert("$bytes".into(), serde_json::Value::String(nrf_core::encode_hex_lower(b)));
+    serde_json::Value::Object(obj)
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +109,11 @@ pub fn from_json(j: &serde_json::Value) -> Result<Value, JsonViewError> {
                 Err(JsonViewError::IntegerOverflow)
             }
         }
-        serde_json::Value::String(s) => parse_string_or_bytes(s),
+        // Canon 4: strings are just strings. No prefix interpretation.
+        serde_json::Value::String(s) => {
+            validate_string(s)?;
+            Ok(Value::String(s.clone()))
+        }
         serde_json::Value::Array(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items {
@@ -136,12 +122,20 @@ pub fn from_json(j: &serde_json::Value) -> Result<Value, JsonViewError> {
             Ok(Value::Array(out))
         }
         serde_json::Value::Object(obj) => {
-            // Check for {"$bytes": "<base64>"} special form
+            // Canon 4: {"$bytes": "<lowercase hex>"} is the ONLY bytes form
             if obj.len() == 1 {
-                if let Some(serde_json::Value::String(b64_str)) = obj.get("$bytes") {
-                    let decoded = B64
-                        .decode(b64_str)
-                        .map_err(|e| JsonViewError::BadBase64(e.to_string()))?;
+                if let Some(serde_json::Value::String(hex_str)) = obj.get("$bytes") {
+                    // Validate: even length, lowercase hex only
+                    if hex_str.len() % 2 != 0 {
+                        return Err(JsonViewError::OddHex);
+                    }
+                    if !hex_str.is_empty() && !RE_HEX_LOWER.is_match(hex_str) {
+                        return Err(JsonViewError::BadHex);
+                    }
+                    let decoded = nrf_core::parse_hex_lower(hex_str).map_err(|e| match e {
+                        nrf_core::Error::HexOddLength => JsonViewError::OddHex,
+                        _ => JsonViewError::BadHex,
+                    })?;
                     return Ok(Value::Bytes(decoded));
                 }
             }
@@ -159,36 +153,6 @@ pub fn from_json(j: &serde_json::Value) -> Result<Value, JsonViewError> {
 pub fn json_to_nrf_bytes(j: &serde_json::Value) -> Result<Vec<u8>, JsonViewError> {
     let v = from_json(j)?;
     Ok(nrf_core::encode(&v))
-}
-
-// ---------------------------------------------------------------------------
-// String parsing: plain string vs bytes-encoded-as-string
-// ---------------------------------------------------------------------------
-
-fn parse_string_or_bytes(s: &str) -> Result<Value, JsonViewError> {
-    // "b3:<64 hex chars>" → Bytes(32)
-    if RE_B3.is_match(s) {
-        let hex_str = &s[3..];
-        let bytes = nrf_core::parse_hex_lower(hex_str).map_err(|e| match e {
-            nrf_core::Error::HexOddLength => JsonViewError::OddHex,
-            nrf_core::Error::HexUppercase | nrf_core::Error::HexInvalidChar => {
-                JsonViewError::BadHex
-            }
-            _ => JsonViewError::BadHex,
-        })?;
-        return Ok(Value::Bytes(bytes));
-    }
-    // "b64:<base64>" → Bytes(16 or 64)
-    if RE_B64_PREFIX.is_match(s) {
-        let b64_str = &s[4..];
-        let bytes = B64
-            .decode(b64_str)
-            .map_err(|e| JsonViewError::BadBase64(e.to_string()))?;
-        return Ok(Value::Bytes(bytes));
-    }
-    // Plain string — validate NFC, no BOM
-    validate_string(s)?;
-    Ok(Value::String(s.to_string()))
 }
 
 fn validate_string(s: &str) -> Result<(), JsonViewError> {
@@ -337,8 +301,9 @@ mod tests {
         let b = vec![0xABu8; 32];
         let v = Value::Bytes(b.clone());
         let j = to_json(&v);
-        let j_str = j.as_str().unwrap();
-        assert!(j_str.starts_with("b3:"));
+        // Canon 4: always {"$bytes": "<hex>"}
+        assert!(j.is_object());
+        assert!(j["$bytes"].is_string());
         assert_eq!(from_json(&j).unwrap(), v);
     }
 
@@ -347,8 +312,8 @@ mod tests {
         let b = vec![0xCDu8; 16];
         let v = Value::Bytes(b.clone());
         let j = to_json(&v);
-        let j_str = j.as_str().unwrap();
-        assert!(j_str.starts_with("b64:"));
+        assert!(j.is_object());
+        assert!(j["$bytes"].is_string());
         assert_eq!(from_json(&j).unwrap(), v);
     }
 
@@ -357,8 +322,8 @@ mod tests {
         let b = vec![0xEFu8; 64];
         let v = Value::Bytes(b.clone());
         let j = to_json(&v);
-        let j_str = j.as_str().unwrap();
-        assert!(j_str.starts_with("b64:"));
+        assert!(j.is_object());
+        assert!(j["$bytes"].is_string());
         assert_eq!(from_json(&j).unwrap(), v);
     }
 
@@ -472,19 +437,38 @@ mod tests {
     }
 
     #[test]
-    fn reject_bad_hex_in_b3() {
+    fn b3_prefix_string_is_just_a_string() {
+        // Canon 4: "b3:..." is a plain string, NOT bytes
         let j = serde_json::Value::String(
-            "b3:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz".into(),
+            "b3:0000000000000000000000000000000000000000000000000000000000000000".into(),
         );
-        // regex won't match non-hex, so it falls through to plain string
-        // which is fine — it's just a string, not bytes
         let result = from_json(&j).unwrap();
         assert!(matches!(result, Value::String(_)));
     }
 
     #[test]
-    fn reject_bad_base64() {
-        let j = serde_json::Value::String("b64:!!!invalid!!!".into());
+    fn b64_prefix_string_is_just_a_string() {
+        // Canon 4: "b64:..." is a plain string, NOT bytes
+        let j = serde_json::Value::String("b64:AAAA".into());
+        let result = from_json(&j).unwrap();
+        assert!(matches!(result, Value::String(_)));
+    }
+
+    #[test]
+    fn reject_bad_hex_in_bytes_object() {
+        let j = serde_json::json!({"$bytes": "ZZZZ"});
+        assert!(from_json(&j).is_err());
+    }
+
+    #[test]
+    fn reject_uppercase_hex_in_bytes_object() {
+        let j = serde_json::json!({"$bytes": "DEADBEEF"});
+        assert!(from_json(&j).is_err());
+    }
+
+    #[test]
+    fn reject_odd_hex_in_bytes_object() {
+        let j = serde_json::json!({"$bytes": "abc"});
         assert!(from_json(&j).is_err());
     }
 

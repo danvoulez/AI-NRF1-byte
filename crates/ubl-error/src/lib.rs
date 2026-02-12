@@ -228,13 +228,9 @@ impl From<ubl_json_view::JsonViewError> for UblError {
                 "Err.JsonView.BadHex",
                 "Invalid hex character found. Hex strings must only contain 0-9 and a-f (lowercase). Check for typos or uppercase letters.",
             ),
-            BadBase64(_) => (
-                "Err.JsonView.BadBase64",
-                "Invalid base64 encoding. Use standard base64 (RFC 4648). Check for missing padding '=' characters or invalid characters.",
-            ),
-            BadPrefix => (
-                "Err.JsonView.BadPrefix",
-                "Unknown bytes prefix. Valid prefixes: 'b3:' (BLAKE3 hash, 32 bytes), 'b64:' (base64, 16 or 64 bytes), or {\"$bytes\": \"<base64>\"} for other sizes.",
+            BadBytesObject(_) => (
+                "Err.JsonView.BadBytesObject",
+                "Invalid $bytes object. Canon 4: the ONLY accepted form is {\"$bytes\": \"<lowercase hex>\"}. Even length, [0-9a-f] only.",
             ),
             NotASCII => (
                 "Err.JsonView.NotASCII",

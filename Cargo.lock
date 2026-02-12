@@ -5233,7 +5233,6 @@ dependencies = [
 name = "ubl_json_view"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
  "nrf-core",
  "proptest",
  "regex",

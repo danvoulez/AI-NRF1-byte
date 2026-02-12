@@ -75,21 +75,25 @@ pub fn now_nanos_i64() -> i64 {
 
 /// Sign a capsule: compute its ID, build the signing payload, and produce
 /// an Ed25519 signature. Mutates `c.id` and `c.seal.sig` in place.
+///
+/// Returns Err if env.body contains floats or non-i64 numbers.
+/// Canon 2: no floats. Canon 3: ρ is the law. Canon 6: reject, never degrade.
 #[cfg_attr(
     feature = "obs",
     tracing::instrument(level = "debug", skip_all, fields(src = %c.hdr.src, act = %c.hdr.act))
 )]
-pub fn sign(c: &mut Capsule, sk: &ed25519_dalek::SigningKey) {
-    // 1. Compute stable ID
-    c.id = compute_id(c);
+pub fn sign(c: &mut Capsule, sk: &ed25519_dalek::SigningKey) -> Result<(), String> {
+    // 1. Compute stable ID (Canon 3: ρ → encode → BLAKE3)
+    c.id = compute_id(c)?;
 
     // 2. Build signing payload: {domain, id, hdr, env}
-    let payload_hash = signing_hash(c);
+    let payload_hash = signing_hash(c)?;
 
     // 3. Sign
     use ed25519_dalek::Signer;
     let sig = sk.sign(&payload_hash);
     c.seal.sig = sig.to_bytes();
+    Ok(())
 }
 
 /// Verify a capsule's seal:
@@ -144,14 +148,16 @@ pub fn verify_with_opts(
             }
         }
 
-        // Check ID stability
-        let computed = compute_id(c);
+        // Check ID stability (Canon 3: ρ → encode → BLAKE3)
+        let computed = compute_id(c)
+            .map_err(|_| SealError::IdMismatch)?;
         if c.id != computed {
             return Err(SealError::IdMismatch);
         }
 
         // Verify Ed25519 signature
-        let payload_hash = signing_hash(c);
+        let payload_hash = signing_hash(c)
+            .map_err(|_| SealError::IdMismatch)?;
         let sig = ed25519_dalek::Signature::from_bytes(&c.seal.sig);
         use ed25519_dalek::Verifier;
         pk.verify(&payload_hash, &sig)
@@ -179,15 +185,17 @@ pub fn verify_with_opts(
 // Signing payload
 // ---------------------------------------------------------------------------
 
-/// The hash that gets signed: blake3(nrf.encode({domain, id, hdr, env}))
-fn signing_hash(c: &Capsule) -> [u8; 32] {
+/// The hash that gets signed: blake3(nrf.encode(ρ({domain, id, hdr, env})))
+fn signing_hash(c: &Capsule) -> Result<[u8; 32], String> {
     let mut root = BTreeMap::new();
     root.insert("domain".into(), Value::String(c.domain.clone()));
     root.insert("id".into(), Value::Bytes(c.id.to_vec()));
     root.insert("hdr".into(), header_value(&c.hdr));
-    root.insert("env".into(), envelope_value(&c.env));
-    let nrf = nrf_core::encode(&Value::Map(root));
-    *blake3::hash(&nrf).as_bytes()
+    root.insert("env".into(), envelope_value(&c.env)?);
+    let normalized = nrf_core::rho::normalize(&Value::Map(root))
+        .map_err(|e| format!("Err.Canon.Rho: {e}"))?;
+    let nrf = nrf_core::encode(&normalized);
+    Ok(*blake3::hash(&nrf).as_bytes())
 }
 
 fn header_value(h: &crate::types::Header) -> Value {
@@ -208,9 +216,10 @@ fn header_value(h: &crate::types::Header) -> Value {
     Value::Map(m)
 }
 
-fn envelope_value(e: &crate::types::Envelope) -> Value {
+fn envelope_value(e: &crate::types::Envelope) -> Result<Value, String> {
     let mut m = BTreeMap::new();
-    m.insert("body".into(), json_to_nrf(&e.body));
+    // Canon 2,6: reject floats, never degrade
+    m.insert("body".into(), json_to_nrf_strict(&e.body)?);
     if !e.evidence.is_empty() {
         m.insert(
             "evidence".into(),
@@ -231,28 +240,36 @@ fn envelope_value(e: &crate::types::Envelope) -> Value {
             m.insert("links".into(), Value::Map(lm));
         }
     }
-    Value::Map(m)
+    Ok(Value::Map(m))
 }
 
-fn json_to_nrf(j: &serde_json::Value) -> Value {
+/// Convert serde_json::Value to nrf_core::Value.
+/// Canon 2: no floats. Canon 6: reject, never degrade.
+fn json_to_nrf_strict(j: &serde_json::Value) -> Result<Value, String> {
     match j {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Null => Ok(Value::Null),
+        serde_json::Value::Bool(b) => Ok(Value::Bool(*b)),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                Value::Int(i)
+                Ok(Value::Int(i))
             } else {
-                Value::String(n.to_string())
+                Err(format!("Err.Canon.Float: {n} is not Int64 — no floats, period"))
             }
         }
-        serde_json::Value::String(s) => Value::String(s.clone()),
-        serde_json::Value::Array(a) => Value::Array(a.iter().map(json_to_nrf).collect()),
-        serde_json::Value::Object(o) => {
-            let mut m = BTreeMap::new();
-            for (k, v) in o {
-                m.insert(k.clone(), json_to_nrf(v));
+        serde_json::Value::String(s) => Ok(Value::String(s.clone())),
+        serde_json::Value::Array(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(json_to_nrf_strict(item)?);
             }
-            Value::Map(m)
+            Ok(Value::Array(out))
+        }
+        serde_json::Value::Object(obj) => {
+            let mut m = BTreeMap::new();
+            for (k, v) in obj {
+                m.insert(k.clone(), json_to_nrf_strict(v)?);
+            }
+            Ok(Value::Map(m))
         }
     }
 }
@@ -304,7 +321,7 @@ mod tests {
     fn sign_and_verify_ok() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert_ne!(c.id, [0u8; 32]);
         assert_ne!(c.seal.sig, [0u8; 64]);
         assert!(verify(&c, &vk).is_ok());
@@ -314,7 +331,7 @@ mod tests {
     fn tamper_env_fails() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         c.env.body = serde_json::json!({"tampered": true});
         // ID will mismatch because env changed
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::IdMismatch);
@@ -324,7 +341,7 @@ mod tests {
     fn tamper_hdr_fails() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         c.hdr.act = "EVALUATE".into();
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::IdMismatch);
     }
@@ -333,7 +350,7 @@ mod tests {
     fn wrong_domain_fails() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         c.domain = "wrong/1.0".into();
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::BadDomain);
     }
@@ -342,7 +359,7 @@ mod tests {
     fn wrong_scope_fails() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         c.seal.scope = "wrong".into();
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::BadScope);
     }
@@ -351,7 +368,7 @@ mod tests {
     fn bad_audience_fails() {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         c.seal.aud = Some("did:ubl:eve".into());
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::BadAudience);
     }
@@ -362,7 +379,7 @@ mod tests {
         let mut c = make_capsule();
         c.hdr.dst = None;
         c.seal.aud = None;
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert!(verify(&c, &vk).is_ok());
     }
 
@@ -372,7 +389,7 @@ mod tests {
         let mut c = make_capsule();
         c.hdr.dst = None;
         c.seal.aud = Some("did:ubl:bob".into());
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         // Manually set aud after signing to bypass the sign flow
         assert_eq!(verify(&c, &vk).unwrap_err(), SealError::BadAudience);
     }
@@ -382,7 +399,7 @@ mod tests {
         let (sk, _vk) = keypair();
         let (_sk2, vk2) = keypair();
         let mut c = make_capsule();
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert_eq!(verify(&c, &vk2).unwrap_err(), SealError::BadSignature);
     }
 
@@ -391,7 +408,7 @@ mod tests {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
         c.hdr.exp = Some(1); // expired in 1970
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert!(matches!(
             verify(&c, &vk).unwrap_err(),
             SealError::Expired { .. }
@@ -403,7 +420,7 @@ mod tests {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
         c.hdr.exp = Some(i64::MAX); // far future
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert!(verify(&c, &vk).is_ok());
     }
 
@@ -413,7 +430,7 @@ mod tests {
         let mut c = make_capsule();
         let now = now_nanos_i64();
         c.hdr.exp = Some(now - 1_000_000_000); // 1s ago
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert!(verify(&c, &vk).is_err());
         let opts = VerifyOpts {
             allowed_skew_ns: 2_000_000_000,
@@ -427,7 +444,7 @@ mod tests {
         let (sk, vk) = keypair();
         let mut c = make_capsule();
         c.hdr.exp = None;
-        sign(&mut c, &sk);
+        sign(&mut c, &sk).unwrap();
         assert!(verify(&c, &vk).is_ok());
     }
 }

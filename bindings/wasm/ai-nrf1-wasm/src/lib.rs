@@ -119,18 +119,8 @@ fn json_to_value(j: &serde_json::Value) -> Result<Value, String> {
                 Err("InvalidNumber: cannot represent as Int64".into())
             }
         }
-        serde_json::Value::String(s) => {
-            // Check for b3: hex prefix (bytes convention)
-            if let Some(hex) = s.strip_prefix("b3:") {
-                let bytes = nrf_core::parse_hex_lower(hex).map_err(|e| format!("{e}"))?;
-                Ok(Value::Bytes(bytes))
-            } else if let Some(hex) = s.strip_prefix("0x") {
-                let bytes = nrf_core::parse_hex_lower(hex).map_err(|e| format!("{e}"))?;
-                Ok(Value::Bytes(bytes))
-            } else {
-                Ok(Value::String(s.clone()))
-            }
-        }
+        // Canon 4: strings are just strings. No prefix interpretation.
+        serde_json::Value::String(s) => Ok(Value::String(s.clone())),
         serde_json::Value::Array(arr) => {
             let mut out = Vec::with_capacity(arr.len());
             for item in arr {
@@ -139,6 +129,14 @@ fn json_to_value(j: &serde_json::Value) -> Result<Value, String> {
             Ok(Value::Array(out))
         }
         serde_json::Value::Object(obj) => {
+            // Canon 4: {"$bytes": "<lowercase hex>"} is the ONLY bytes form
+            if obj.len() == 1 {
+                if let Some(serde_json::Value::String(hex_str)) = obj.get("$bytes") {
+                    let bytes = nrf_core::parse_hex_lower(hex_str)
+                        .map_err(|e| format!("Err.Canon.BadBytesHex: {e}"))?;
+                    return Ok(Value::Bytes(bytes));
+                }
+            }
             let mut map = BTreeMap::new();
             for (k, v) in obj {
                 map.insert(k.clone(), json_to_value(v)?);
@@ -154,8 +152,11 @@ fn value_to_json(v: &Value) -> serde_json::Value {
         Value::Bool(b) => serde_json::Value::Bool(*b),
         Value::Int(n) => serde_json::json!(*n),
         Value::String(s) => serde_json::Value::String(s.clone()),
+        // Canon 4: ALL bytes → {"$bytes": "<lowercase hex>"}
         Value::Bytes(b) => {
-            serde_json::Value::String(format!("b3:{}", nrf_core::encode_hex_lower(b)))
+            let mut obj = serde_json::Map::new();
+            obj.insert("$bytes".into(), serde_json::Value::String(nrf_core::encode_hex_lower(b)));
+            serde_json::Value::Object(obj)
         }
         Value::Array(items) => serde_json::Value::Array(items.iter().map(value_to_json).collect()),
         Value::Map(m) => {
@@ -198,10 +199,19 @@ mod tests {
     }
 
     #[test]
-    fn test_json_to_value_bytes_b3() {
-        let j = serde_json::json!("b3:deadbeef");
+    fn test_json_to_value_bytes_object() {
+        // Canon 4: {"$bytes": "<hex>"} is the ONLY bytes form
+        let j = serde_json::json!({"$bytes": "deadbeef"});
         let v = json_to_value(&j).unwrap();
         assert_eq!(v, Value::Bytes(vec![0xDE, 0xAD, 0xBE, 0xEF]));
+    }
+
+    #[test]
+    fn test_b3_prefix_is_just_a_string() {
+        // Canon 4: "b3:..." is a plain string, NOT bytes
+        let j = serde_json::json!("b3:deadbeef");
+        let v = json_to_value(&j).unwrap();
+        assert_eq!(v, Value::String("b3:deadbeef".into()));
     }
 
     #[test]
@@ -210,5 +220,15 @@ mod tests {
         let v = json_to_value(&j).unwrap();
         let back = value_to_json(&v);
         assert_eq!(j, back);
+    }
+
+    #[test]
+    fn test_roundtrip_bytes() {
+        // Canon 4: bytes roundtrip through {"$bytes": "<hex>"}
+        let j = serde_json::json!({"$bytes": "cafebabe"});
+        let v = json_to_value(&j).unwrap();
+        assert_eq!(v, Value::Bytes(vec![0xCA, 0xFE, 0xBA, 0xBE]));
+        let back = value_to_json(&v);
+        assert_eq!(back, j);
     }
 }

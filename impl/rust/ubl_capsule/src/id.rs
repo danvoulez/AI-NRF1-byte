@@ -12,12 +12,17 @@ use std::collections::BTreeMap;
 
 /// Compute the stable capsule ID.
 ///
-/// The ID is `blake3(nrf.encode(core))` where `core` is the capsule
+/// The ID is `blake3(nrf.encode(ρ(core)))` where `core` is the capsule
 /// with `id`, `seal.sig`, and all `receipts[*].sig` zeroed out.
-pub fn compute_id(c: &Capsule) -> [u8; 32] {
-    let core = capsule_core_value(c);
-    let bytes = nrf_core::encode(&core);
-    *blake3::hash(&bytes).as_bytes()
+///
+/// Returns Err if env.body contains floats or non-i64 numbers.
+/// Canon 2: no floats. Canon 3: ρ is the law. Canon 6: reject, never degrade.
+pub fn compute_id(c: &Capsule) -> Result<[u8; 32], String> {
+    let core = capsule_core_value(c)?;
+    let normalized = nrf_core::rho::normalize(&core)
+        .map_err(|e| format!("Err.Canon.Rho: {e}"))?;
+    let bytes = nrf_core::encode(&normalized);
+    Ok(*blake3::hash(&bytes).as_bytes())
 }
 
 /// Build the NRF Value representing the "core" of the capsule
@@ -26,7 +31,7 @@ pub fn compute_id(c: &Capsule) -> [u8; 32] {
 /// Receipts are entirely excluded because they are append-only metadata
 /// that arrives after the capsule is created. The ID must be stable
 /// regardless of how many hops are added.
-fn capsule_core_value(c: &Capsule) -> Value {
+fn capsule_core_value(c: &Capsule) -> Result<Value, String> {
     let mut root = BTreeMap::new();
 
     // domain
@@ -35,8 +40,8 @@ fn capsule_core_value(c: &Capsule) -> Value {
     // hdr
     root.insert("hdr".into(), header_value(&c.hdr));
 
-    // env
-    root.insert("env".into(), envelope_value(&c.env));
+    // env — Canon 2,6: json_to_nrf_strict rejects floats
+    root.insert("env".into(), envelope_value(&c.env)?);
 
     // seal (without sig — only kid, scope, aud)
     let mut seal_map = BTreeMap::new();
@@ -49,7 +54,7 @@ fn capsule_core_value(c: &Capsule) -> Value {
 
     // receipts are EXCLUDED from ID computation
 
-    Value::Map(root)
+    Ok(Value::Map(root))
 }
 
 fn header_value(h: &crate::types::Header) -> Value {
@@ -70,10 +75,10 @@ fn header_value(h: &crate::types::Header) -> Value {
     Value::Map(m)
 }
 
-fn envelope_value(e: &crate::types::Envelope) -> Value {
+fn envelope_value(e: &crate::types::Envelope) -> Result<Value, String> {
     let mut m = BTreeMap::new();
-    // body: serialize JSON to canonical NRF string
-    m.insert("body".into(), json_to_nrf_value(&e.body));
+    // body: Canon 2,6 — reject floats, never degrade
+    m.insert("body".into(), json_to_nrf_strict(&e.body)?);
     if !e.evidence.is_empty() {
         m.insert(
             "evidence".into(),
@@ -94,32 +99,36 @@ fn envelope_value(e: &crate::types::Envelope) -> Value {
             m.insert("links".into(), Value::Map(lm));
         }
     }
-    Value::Map(m)
+    Ok(Value::Map(m))
 }
 
-/// Convert a serde_json::Value to an nrf_core::Value for hashing.
-fn json_to_nrf_value(j: &serde_json::Value) -> Value {
+/// Convert serde_json::Value to nrf_core::Value.
+/// Canon 2: no floats. Canon 6: reject, never degrade.
+fn json_to_nrf_strict(j: &serde_json::Value) -> Result<Value, String> {
     match j {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Null => Ok(Value::Null),
+        serde_json::Value::Bool(b) => Ok(Value::Bool(*b)),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                Value::Int(i)
+                Ok(Value::Int(i))
             } else {
-                // Fallback: encode as string (no floats in NRF)
-                Value::String(n.to_string())
+                Err(format!("Err.Canon.Float: {n} is not Int64 — no floats, period"))
             }
         }
-        serde_json::Value::String(s) => Value::String(s.clone()),
+        serde_json::Value::String(s) => Ok(Value::String(s.clone())),
         serde_json::Value::Array(items) => {
-            Value::Array(items.iter().map(json_to_nrf_value).collect())
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(json_to_nrf_strict(item)?);
+            }
+            Ok(Value::Array(out))
         }
         serde_json::Value::Object(obj) => {
             let mut m = BTreeMap::new();
             for (k, v) in obj {
-                m.insert(k.clone(), json_to_nrf_value(v));
+                m.insert(k.clone(), json_to_nrf_strict(v)?);
             }
-            Value::Map(m)
+            Ok(Value::Map(m))
         }
     }
 }
@@ -164,8 +173,8 @@ mod tests {
     #[test]
     fn id_is_deterministic() {
         let c = make_capsule();
-        let id1 = compute_id(&c);
-        let id2 = compute_id(&c);
+        let id1 = compute_id(&c).unwrap();
+        let id2 = compute_id(&c).unwrap();
         assert_eq!(id1, id2);
         assert_ne!(id1, [0u8; 32]); // not all zeros
     }
@@ -173,7 +182,7 @@ mod tests {
     #[test]
     fn id_stable_after_adding_receipt() {
         let mut c = make_capsule();
-        let id_before = compute_id(&c);
+        let id_before = compute_id(&c).unwrap();
 
         c.receipts.push(Receipt {
             id: [0xBB; 32],
@@ -185,7 +194,7 @@ mod tests {
             sig: [0xCC; 64],
         });
 
-        let id_after = compute_id(&c);
+        let id_after = compute_id(&c).unwrap();
         assert_eq!(
             id_before, id_after,
             "ID must NOT change when receipts are added"
@@ -195,7 +204,7 @@ mod tests {
     #[test]
     fn id_stable_after_removing_receipt() {
         let mut c = make_capsule();
-        let id_base = compute_id(&c);
+        let id_base = compute_id(&c).unwrap();
 
         c.receipts.push(Receipt {
             id: [0xBB; 32],
@@ -208,7 +217,7 @@ mod tests {
         });
 
         c.receipts.clear();
-        let id_cleared = compute_id(&c);
+        let id_cleared = compute_id(&c).unwrap();
         assert_eq!(
             id_base, id_cleared,
             "ID must NOT change when receipts are removed"
@@ -218,9 +227,9 @@ mod tests {
     #[test]
     fn id_stable_regardless_of_seal_sig() {
         let mut c = make_capsule();
-        let id1 = compute_id(&c);
+        let id1 = compute_id(&c).unwrap();
         c.seal.sig = [0xFF; 64];
-        let id2 = compute_id(&c);
+        let id2 = compute_id(&c).unwrap();
         assert_eq!(id1, id2, "ID must NOT change when seal.sig changes");
     }
 
@@ -230,8 +239,8 @@ mod tests {
         let mut c2 = make_capsule();
         c2.hdr.act = "EVALUATE".into();
         assert_ne!(
-            compute_id(&c1),
-            compute_id(&c2),
+            compute_id(&c1).unwrap(),
+            compute_id(&c2).unwrap(),
             "different hdr → different ID"
         );
     }
@@ -242,8 +251,8 @@ mod tests {
         let mut c2 = make_capsule();
         c2.env.body = serde_json::json!({"name": "different"});
         assert_ne!(
-            compute_id(&c1),
-            compute_id(&c2),
+            compute_id(&c1).unwrap(),
+            compute_id(&c2).unwrap(),
             "different env → different ID"
         );
     }
@@ -254,8 +263,8 @@ mod tests {
         let mut c2 = make_capsule();
         c2.domain = "ubl-capsule/2.0".into();
         assert_ne!(
-            compute_id(&c1),
-            compute_id(&c2),
+            compute_id(&c1).unwrap(),
+            compute_id(&c2).unwrap(),
             "different domain → different ID"
         );
     }
@@ -265,6 +274,6 @@ mod tests {
         let c1 = make_capsule(); // receipts: vec![]
         let mut c2 = make_capsule();
         c2.receipts = vec![];
-        assert_eq!(compute_id(&c1), compute_id(&c2));
+        assert_eq!(compute_id(&c1).unwrap(), compute_id(&c2).unwrap());
     }
 }
