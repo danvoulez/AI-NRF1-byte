@@ -68,8 +68,20 @@ impl IntakeModule {
                 _ => anyhow::bail!("non-object at parent path '{}'", parent),
             }
         } else {
-            *root = val;
-            Ok(())
+            // Single-segment path: insert as key in root object (don't replace root)
+            match root {
+                Value::Object(m) => {
+                    m.insert(path.to_string(), val);
+                    Ok(())
+                }
+                _ => {
+                    // Root is not an object — wrap it
+                    let mut m = serde_json::Map::new();
+                    m.insert(path.to_string(), val);
+                    *root = Value::Object(m);
+                    Ok(())
+                }
+            }
         }
     }
 

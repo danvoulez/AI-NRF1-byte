@@ -31,6 +31,9 @@ impl Default for CapRegistry {
 }
 
 fn semver_match(actual: &str, req: &str) -> bool {
+    if req == "*" {
+        return true;
+    }
     let req = req.strip_prefix('^').unwrap_or(req);
     actual.split('.').next() == req.split('.').next()
 }

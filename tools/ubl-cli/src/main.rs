@@ -268,8 +268,8 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Llm { cmd } => match cmd {
             LlmCmd::Complete(a) => llm::llm_complete(a).await,
             LlmCmd::Judge(a) => llm::llm_judge(a).await,
-            LlmCmd::Engine { args } => modules::run_llm("engine", args),
-            LlmCmd::Smart { args } => modules::run_llm("smart", args),
+            LlmCmd::Engine { args } => modules::run_llm("engine", args).await,
+            LlmCmd::Smart { args } => modules::run_llm("smart", args).await,
         },
         Commands::Pricing { cmd } => match cmd {
             PricingCmd::Price(a) => pricing::price(a).await,
@@ -277,8 +277,8 @@ async fn run(cli: Cli) -> Result<()> {
             PricingCmd::Invoice(a) => pricing::invoice(a).await,
         },
         Commands::Tdln { cmd } => match cmd {
-            TdlnCmd::Policy { args } => modules::run_tdln("policy", args),
-            TdlnCmd::Runtime { args } => modules::run_tdln("runtime", args),
+            TdlnCmd::Policy { args } => modules::run_tdln("policy", args).await,
+            TdlnCmd::Runtime { args } => modules::run_tdln("runtime", args).await,
         },
     }
 }

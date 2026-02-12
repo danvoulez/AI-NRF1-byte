@@ -16,6 +16,7 @@ const MAX_VAR_KV_LEN: usize = 2048;
 static CAP_WHITELIST: &[&str] = &[
     "cap-intake","cap-policy","cap-runtime","cap-structure",
     "cap-llm-engine","cap-llm-smart","cap-enrich","cap-transport","cap-permit",
+    "cap-pricing","cap-llm",
     "policy.light","policy.hardening",
 ];
 
@@ -31,25 +32,25 @@ pub struct RunArgs {
     pub schema: String,
 }
 
-pub fn run_tdln(kind: &str, args: RunArgs) -> Result<()> {
+pub async fn run_tdln(kind: &str, args: RunArgs) -> Result<()> {
     let default = match kind {
         "policy" => "manifests/tdln/policy.yaml",
         "runtime" => "manifests/tdln/runtime.yaml",
         _ => return Err(anyhow!("tdln kind inválido")),
     };
-    run_common(&format!("tdln.{kind}"), args, default)
+    run_common(&format!("tdln.{kind}"), args, default).await
 }
 
-pub fn run_llm(kind: &str, args: RunArgs) -> Result<()> {
+pub async fn run_llm(kind: &str, args: RunArgs) -> Result<()> {
     let default = match kind {
         "engine" => "manifests/llm/engine.yaml",
         "smart" => "manifests/llm/smart.yaml",
         _ => return Err(anyhow!("llm kind inválido")),
     };
-    run_common(&format!("llm.{kind}"), args, default)
+    run_common(&format!("llm.{kind}"), args, default).await
 }
 
-fn run_common(cmd: &str, mut args: RunArgs, default_manifest: &str) -> Result<()> {
+async fn run_common(cmd: &str, mut args: RunArgs, default_manifest: &str) -> Result<()> {
     if args.var.len() > MAX_VARS { anyhow::bail!("muitos --var (máx {})", MAX_VARS); }
     for kv in &args.var {
         if kv.len() > MAX_VAR_KV_LEN { anyhow::bail!("var muito grande (> {} bytes)", MAX_VAR_KV_LEN); }
@@ -64,7 +65,7 @@ fn run_common(cmd: &str, mut args: RunArgs, default_manifest: &str) -> Result<()
     validate_pipeline(&manifest)?;
     validate_outputs(&manifest, cmd)?;
 
-    let res = execute::run_manifest(manifest.clone(), &args.var)?;
+    let res = execute::run_manifest(manifest.clone(), &args.var).await?;
 
     let out = json!({
         "ok": true,

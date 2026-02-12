@@ -3,11 +3,19 @@ name: tdln-policy
 backend: { mode: in-process }
 pipeline:
   - use: cap-intake
-    with: { map: { data: "@inputs.payload" } }
+    with:
+      mapping:
+        - { from: "data", to: "payload" }
   - use: cap-policy
-    with: { refs: [{ cid: "bafyPolicy..." }], fail_on_violation: true }
+    with:
+      rules:
+        - { kind: "EXIST", paths: ["payload"] }
+      decision_on_fail: "DENY"
   - use: cap-enrich
-    with: { produce: [{ kind: html, template: "receipts/report.html" }, { kind: json }] }
+    with:
+      drivers:
+        - { kind: "status-page" }
   - use: cap-transport
-    with: { publish: ["receipt","artifacts"] }
+    with:
+      node: "did:ubl:tdln-policy#key-1"
 outputs: { format: "json", fields: ["decision","receipt_cid","url_rica","artifacts"] }

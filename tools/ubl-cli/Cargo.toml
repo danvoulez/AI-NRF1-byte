@@ -22,6 +22,16 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 blake3 = "1"
 anyhow = "1"
 module-runner = { path = "../../crates/module-runner" }
+modules-core = { path = "../../crates/modules-core" }
+nrf1 = { path = "../../crates/nrf1" }
+cap-intake = { path = "../../modules/cap-intake", optional = true }
+cap-policy = { path = "../../modules/cap-policy", optional = true }
+cap-enrich = { path = "../../modules/cap-enrich", optional = true }
+cap-transport = { path = "../../modules/cap-transport", optional = true }
+cap-permit = { path = "../../modules/cap-permit", optional = true }
+cap-llm = { path = "../../modules/cap-llm", optional = true }
+cap-pricing = { path = "../../modules/cap-pricing", optional = true }
+cap-runtime = { path = "../../modules/cap-runtime", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde_yaml = "0.9"
@@ -32,7 +42,10 @@ default = ["provider-registry"]
 provider-openai = []
 provider-ollama = []
 provider-registry = []
-runner-real = []
+runner-real = [
+  "cap-intake", "cap-policy", "cap-enrich", "cap-transport",
+  "cap-permit", "cap-llm", "cap-pricing", "cap-runtime",
+]
 
 [dev-dependencies]
 assert_cmd = "2"
