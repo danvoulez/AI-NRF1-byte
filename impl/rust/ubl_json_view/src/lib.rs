@@ -78,8 +78,19 @@ pub fn to_json(v: &Value) -> serde_json::Value {
 }
 
 /// Convert NRF bytes to a full NRF-encoded buffer, then to JSON.
+/// Uses default (conservative) decode limits.
 pub fn nrf_bytes_to_json(bytes: &[u8]) -> Result<serde_json::Value, JsonViewError> {
     let v = nrf_core::decode(bytes).map_err(|e| JsonViewError::NrfDecode(e.to_string()))?;
+    Ok(to_json(&v))
+}
+
+/// Convert NRF bytes to JSON with explicit decode limits.
+pub fn nrf_bytes_to_json_with_opts(
+    bytes: &[u8],
+    opts: &nrf_core::DecodeOpts,
+) -> Result<serde_json::Value, JsonViewError> {
+    let v = nrf_core::decode_with_opts(bytes, opts)
+        .map_err(|e| JsonViewError::NrfDecode(e.to_string()))?;
     Ok(to_json(&v))
 }
 

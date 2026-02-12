@@ -142,6 +142,22 @@ impl From<nrf_core::Error> for UblError {
                 "Err.NRF.SizeExceeded",
                 "Encoded size exceeds the maximum allowed. Reduce the payload size or increase the size limit.",
             ),
+            StringTooLong => (
+                "Err.NRF.StringTooLong",
+                "A single string exceeds the maximum allowed length. Default limit: 1 MiB. Use DecodeOpts to adjust.",
+            ),
+            BytesTooLong => (
+                "Err.NRF.BytesTooLong",
+                "A single Bytes value exceeds the maximum allowed length. Default limit: 1 MiB. Use DecodeOpts to adjust.",
+            ),
+            ArrayTooLong => (
+                "Err.NRF.ArrayTooLong",
+                "Array element count exceeds the maximum allowed. Default limit: 100,000. Use DecodeOpts to adjust.",
+            ),
+            MapTooLong => (
+                "Err.NRF.MapTooLong",
+                "Map pair count exceeds the maximum allowed. Default limit: 100,000. Use DecodeOpts to adjust.",
+            ),
             Io(_) => (
                 "Err.NRF.Io",
                 "An I/O error occurred during encoding or decoding. Check file permissions, disk space, or network connectivity.",

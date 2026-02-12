@@ -49,6 +49,14 @@ pub enum Error {
     DepthExceeded,
     #[error("SizeExceeded")]
     SizeExceeded,
+    #[error("StringTooLong")]
+    StringTooLong,
+    #[error("BytesTooLong")]
+    BytesTooLong,
+    #[error("ArrayTooLong")]
+    ArrayTooLong,
+    #[error("MapTooLong")]
+    MapTooLong,
     #[error("Io({0})")]
     Io(String),
     #[error("HexOddLength")]
@@ -124,9 +132,67 @@ fn encode_value(buf: &mut Vec<u8>, v: &Value) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Decode options — Canon 6: resource limits against DoS
+// ---------------------------------------------------------------------------
+
+/// Resource limits for decoding. Canon 6 / Security Considerations §3.2.
+#[derive(Debug, Clone)]
+pub struct DecodeOpts {
+    /// Maximum nesting depth for arrays/maps (default: 64).
+    pub max_depth: usize,
+    /// Maximum total input bytes (default: 8 MiB).
+    pub max_total_bytes: usize,
+    /// Maximum byte length of a single string (default: 1 MiB).
+    pub max_string_len: usize,
+    /// Maximum byte length of a single Bytes value (default: 1 MiB).
+    pub max_bytes_len: usize,
+    /// Maximum number of elements in a single array (default: 100_000).
+    pub max_array_len: usize,
+    /// Maximum number of pairs in a single map (default: 100_000).
+    pub max_map_len: usize,
+}
+
+impl Default for DecodeOpts {
+    fn default() -> Self {
+        Self {
+            max_depth: 64,
+            max_total_bytes: 8 * 1024 * 1024, // 8 MiB
+            max_string_len: 1024 * 1024,       // 1 MiB
+            max_bytes_len: 1024 * 1024,        // 1 MiB
+            max_array_len: 100_000,
+            max_map_len: 100_000,
+        }
+    }
+}
+
+impl DecodeOpts {
+    /// Permissive opts for trusted internal use (e.g. re-decoding our own output).
+    pub fn permissive() -> Self {
+        Self {
+            max_depth: 256,
+            max_total_bytes: usize::MAX,
+            max_string_len: usize::MAX,
+            max_bytes_len: usize::MAX,
+            max_array_len: usize::MAX,
+            max_map_len: usize::MAX,
+        }
+    }
+}
+
 /// Decode from full buffer (with magic) and reject trailing bytes.
+/// Uses default (conservative) resource limits.
 #[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all, fields(len = data.len())))]
 pub fn decode(data: &[u8]) -> Result<Value> {
+    decode_with_opts(data, &DecodeOpts::default())
+}
+
+/// Decode with explicit resource limits. Canon 6: reject, never degrade.
+#[cfg_attr(feature = "obs", tracing::instrument(level = "trace", skip_all, fields(len = data.len())))]
+pub fn decode_with_opts(data: &[u8], opts: &DecodeOpts) -> Result<Value> {
+    if data.len() > opts.max_total_bytes {
+        return Err(Error::SizeExceeded);
+    }
     if data.len() < 4 {
         return Err(Error::InvalidMagic);
     }
@@ -134,17 +200,15 @@ pub fn decode(data: &[u8]) -> Result<Value> {
         return Err(Error::InvalidMagic);
     }
     let mut cur = &data[4..];
-    let v = decode_value(&mut cur, 0)?;
+    let v = decode_value_opts(&mut cur, 0, opts)?;
     if !cur.is_empty() {
         return Err(Error::TrailingData);
     }
     Ok(v)
 }
 
-const MAX_DEPTH_DEFAULT: usize = 256;
-
-fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
-    if depth > MAX_DEPTH_DEFAULT {
+fn decode_value_opts(cur: &mut &[u8], depth: usize, opts: &DecodeOpts) -> Result<Value> {
+    if depth > opts.max_depth {
         return Err(Error::DepthExceeded);
     }
     if cur.is_empty() {
@@ -168,6 +232,9 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
         }
         0x04 => {
             let len = decode_varint32(cur)? as usize;
+            if len > opts.max_string_len {
+                return Err(Error::StringTooLong);
+            }
             if cur.len() < len {
                 return Err(Error::UnexpectedEOF);
             }
@@ -184,6 +251,9 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
         }
         0x05 => {
             let len = decode_varint32(cur)? as usize;
+            if len > opts.max_bytes_len {
+                return Err(Error::BytesTooLong);
+            }
             if cur.len() < len {
                 return Err(Error::UnexpectedEOF);
             }
@@ -193,14 +263,20 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
         }
         0x06 => {
             let count = decode_varint32(cur)? as usize;
-            let mut v = Vec::with_capacity(count);
+            if count > opts.max_array_len {
+                return Err(Error::ArrayTooLong);
+            }
+            let mut v = Vec::with_capacity(count.min(1024));
             for _ in 0..count {
-                v.push(decode_value(cur, depth + 1)?);
+                v.push(decode_value_opts(cur, depth + 1, opts)?);
             }
             Ok(Value::Array(v))
         }
         0x07 => {
             let count = decode_varint32(cur)? as usize;
+            if count > opts.max_map_len {
+                return Err(Error::MapTooLong);
+            }
             let mut map = BTreeMap::new();
             let mut prev: Option<Vec<u8>> = None;
             for _ in 0..count {
@@ -214,6 +290,9 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
                     return Err(Error::NonStringKey);
                 }
                 let klen = decode_varint32(cur)? as usize;
+                if klen > opts.max_string_len {
+                    return Err(Error::StringTooLong);
+                }
                 if cur.len() < klen {
                     return Err(Error::UnexpectedEOF);
                 }
@@ -234,7 +313,7 @@ fn decode_value(cur: &mut &[u8], depth: usize) -> Result<Value> {
                     }
                 }
                 prev = Some(kbytes.to_vec());
-                let val = decode_value(cur, depth + 1)?;
+                let val = decode_value_opts(cur, depth + 1, opts)?;
                 map.insert(kstr.to_string(), val);
             }
             Ok(Value::Map(map))
@@ -520,5 +599,104 @@ mod tests {
     #[test]
     fn validate_nfc_reject_nfd() {
         assert_eq!(validate_nfc("e\u{0301}").unwrap_err(), Error::NotNFC);
+    }
+
+    // --- DecodeOpts: malicious corpus tests (Canon 6 DoS guard) ---
+
+    #[test]
+    fn decode_opts_default_roundtrip() {
+        let v = Value::String("hello".into());
+        let enc = encode(&v);
+        assert_eq!(decode_with_opts(&enc, &DecodeOpts::default()).unwrap(), v);
+    }
+
+    #[test]
+    fn decode_opts_rejects_oversized_input() {
+        let opts = DecodeOpts { max_total_bytes: 10, ..DecodeOpts::default() };
+        // magic(4) + tag(1) + varint(1) + "hello"(5) = 11 bytes > 10
+        let v = Value::String("hello".into());
+        let enc = encode(&v);
+        assert!(enc.len() > 10);
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::SizeExceeded);
+    }
+
+    #[test]
+    fn decode_opts_rejects_deep_nesting() {
+        // Build array nested 5 deep, then decode with max_depth=3
+        let mut v = Value::Int(1);
+        for _ in 0..5 {
+            v = Value::Array(vec![v]);
+        }
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_depth: 3, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::DepthExceeded);
+    }
+
+    #[test]
+    fn decode_opts_accepts_within_depth() {
+        let mut v = Value::Int(1);
+        for _ in 0..3 {
+            v = Value::Array(vec![v]);
+        }
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_depth: 5, ..DecodeOpts::default() };
+        assert!(decode_with_opts(&enc, &opts).is_ok());
+    }
+
+    #[test]
+    fn decode_opts_rejects_long_string() {
+        let s = "a".repeat(1000);
+        let v = Value::String(s);
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_string_len: 100, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::StringTooLong);
+    }
+
+    #[test]
+    fn decode_opts_rejects_long_bytes() {
+        let b = vec![0xAA; 1000];
+        let v = Value::Bytes(b);
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_bytes_len: 100, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::BytesTooLong);
+    }
+
+    #[test]
+    fn decode_opts_rejects_large_array() {
+        let v = Value::Array(vec![Value::Null; 200]);
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_array_len: 100, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::ArrayTooLong);
+    }
+
+    #[test]
+    fn decode_opts_rejects_large_map() {
+        let mut m = BTreeMap::new();
+        for i in 0..200 {
+            m.insert(format!("k{i:04}"), Value::Null);
+        }
+        let v = Value::Map(m);
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_map_len: 100, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::MapTooLong);
+    }
+
+    #[test]
+    fn decode_opts_rejects_long_map_key() {
+        let mut m = BTreeMap::new();
+        m.insert("a".repeat(500), Value::Int(1));
+        let v = Value::Map(m);
+        let enc = encode(&v);
+        let opts = DecodeOpts { max_string_len: 100, ..DecodeOpts::default() };
+        assert_eq!(decode_with_opts(&enc, &opts).unwrap_err(), Error::StringTooLong);
+    }
+
+    #[test]
+    fn decode_opts_permissive_accepts_large() {
+        let v = Value::Array(vec![Value::Null; 200_000]);
+        let enc = encode(&v);
+        // Default would reject (max_array_len=100k), permissive accepts
+        assert_eq!(decode_with_opts(&enc, &DecodeOpts::default()).unwrap_err(), Error::ArrayTooLong);
+        assert!(decode_with_opts(&enc, &DecodeOpts::permissive()).is_ok());
     }
 }
