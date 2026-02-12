@@ -27,6 +27,7 @@ pub enum LedgerEvent {
     GhostCreated,
     GhostPromoted,
     GhostExpired,
+    PipelineExecuted,
 }
 
 /// A single append-only ledger entry with full RBAC context
@@ -81,6 +82,7 @@ impl LedgerEntry {
             LedgerEvent::GhostCreated | LedgerEvent::GhostPromoted | LedgerEvent::GhostExpired => {
                 "ghosts"
             }
+            LedgerEvent::PipelineExecuted => "executions",
         }
     }
 }

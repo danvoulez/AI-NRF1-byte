@@ -60,10 +60,14 @@ impl AppState {
             std::env::var("BINARY_SHA256").unwrap_or_else(|_| "dev-build-no-hash".into());
         let rt = runtime::SelfAttestation::new(&binary_sha256);
 
-        // Append-only audit ledger (BASE trait; real implementation comes with capability modules)
+        // Append-only audit ledger — NDJSON files per tenant/product
+        let ledger_dir = std::env::var("LEDGER_DIR").unwrap_or_else(|_| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+            format!("{home}/.ai-nrf1/ledger")
+        });
         let ledger: Arc<dyn LedgerWriter> = {
-            tracing::info!("ledger: null (ledger module not yet implemented)");
-            Arc::new(ubl_storage::ledger::NullLedger)
+            tracing::info!(ledger_dir = %ledger_dir, "ledger: ndjson (append-only files)");
+            Arc::new(ubl_storage::ndjson::NdjsonLedger::new(&ledger_dir))
         };
 
         Ok(Arc::new(Self {

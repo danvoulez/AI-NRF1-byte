@@ -50,6 +50,7 @@ pub struct ModulesState {
     pub executor: DispatchExecutor,
     pub state_dir: String,
     pub store: ExecutionStore,
+    pub ledger: Arc<ubl_storage::ndjson::NdjsonLedger>,
 }
 
 #[cfg(feature = "modules")]
@@ -227,7 +228,7 @@ async fn run_pipeline(
                 product: identity.product.clone(),
                 state: exec_state.to_string(),
                 cid: receipt_cid.clone(),
-                title: manifest_name,
+                title: manifest_name.clone(),
                 origin: "api-gateway".to_string(),
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 integration: "SDK".to_string(),
@@ -246,6 +247,31 @@ async fn run_pipeline(
                 }
                 execs.push_back(stored);
             }
+
+            // Append to NDJSON ledger (fire-and-forget, don't block response)
+            let ledger_entry = ubl_storage::ledger::LedgerEntry::now(
+                ubl_storage::ledger::LedgerEvent::PipelineExecuted,
+                &identity.product,  // app = product slug
+                &identity.tenant,
+                None,
+                vec![],
+                uuid::Uuid::nil(),
+                &receipt_cid,
+                "did:ubl:registry",
+                Some(verdict_str.clone()),
+                serde_json::json!({
+                    "manifest": manifest_name,
+                    "hops": hops.len(),
+                    "artifacts": result.artifacts.len(),
+                    "receipt_chain": &receipt_chain,
+                }),
+            );
+            let ledger = state.ledger.clone();
+            tokio::spawn(async move {
+                if let Err(e) = ubl_storage::ledger::LedgerWriter::append(&*ledger, &ledger_entry).await {
+                    tracing::error!(error = %e, "failed to append to ledger");
+                }
+            });
 
             let resp = RunResponse {
                 ok: true,
@@ -578,10 +604,17 @@ pub fn init_modules_state(state_dir: &str) -> (Arc<ModulesState>, Arc<PermitStat
         .permit_store(PermitStore::new(state_dir))
         .build();
 
+    let ledger_dir = std::env::var("LEDGER_DIR").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        format!("{home}/.ai-nrf1/ledger")
+    });
+    let ledger = Arc::new(ubl_storage::ndjson::NdjsonLedger::new(&ledger_dir));
+
     let modules_state = Arc::new(ModulesState {
         executor,
         state_dir: state_dir.into(),
         store: ExecutionStore::default(),
+        ledger,
     });
 
     let permit_state = Arc::new(PermitState {

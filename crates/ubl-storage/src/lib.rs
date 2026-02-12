@@ -1,4 +1,5 @@
 pub mod ledger;
+pub mod ndjson;
 
 #[cfg(feature = "s3")]
 mod s3;
