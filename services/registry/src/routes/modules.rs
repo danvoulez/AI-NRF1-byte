@@ -596,6 +596,13 @@ pub fn modules_router(
     modules_state: Arc<ModulesState>,
     permit_state: Arc<PermitState>,
 ) -> Router {
+    let api_key_store = Arc::new(crate::middleware::api_key::ApiKeyStore::from_env());
+    let rate_limiter = Arc::new(crate::middleware::rate_limit::RateLimiter::from_env());
+
+    // Middleware execution order (bottom-up in layer stack):
+    // 1. require_identity  — extract X-Tenant + X-Product
+    // 2. require_api_key   — validate X-API-Key per product
+    // 3. rate_limit        — per-product token bucket
     let api_v0 = Router::new()
         .route("/api/v0/run", post(run_pipeline))
         .route("/api/v0/executions", get(list_executions))
@@ -604,6 +611,14 @@ pub fn modules_router(
         .route("/api/v0/audits", get(get_audits))
         .route("/api/v0/evidence", get(get_evidence))
         .route("/api/v0/policies", get(get_policies))
+        .layer(axum::middleware::from_fn(
+            crate::middleware::rate_limit::rate_limit,
+        ))
+        .layer(axum::Extension(rate_limiter))
+        .layer(axum::middleware::from_fn(
+            crate::middleware::api_key::require_api_key,
+        ))
+        .layer(axum::Extension(api_key_store))
         .layer(axum::middleware::from_fn(
             crate::middleware::identity::require_identity,
         ))
