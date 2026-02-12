@@ -22,6 +22,7 @@ members = [
   "modules/cap-pricing",
   "modules/cap-quote",
   "modules/cap-invoice",
+  "modules/cap-runtime",
 
   # Domain crates
   "crates/receipt",
@@ -36,6 +37,7 @@ members = [
   "crates/ubl-transport",
   "crates/ubl-policy",
   "crates/ubl-replay",
+  "crates/receipt-idem",
 
   # Service layer (brand = ubl-*)
   "crates/ubl-auth",
@@ -50,6 +52,7 @@ members = [
 
   # CLI / Tools
   "tools/ubl-cli",
+  "tools/bench-report",
 
   # Conformance tests
   "tests/base_conformance",

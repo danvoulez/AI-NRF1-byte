@@ -1,0 +1,100 @@
+//! Extensão do `ubl` com os 4 comandos: tdln {policy,runtime} e llm {engine,smart}.
+//! Implementação minimalista: parse YAML/JSON, (option) expansão de bundles, valida steps e imprime shape.
+
+use clap::{Args, Subcommand};
+use anyhow::{Result, anyhow};
+use std::path::PathBuf;
+use std::fs;
+
+#[derive(Subcommand)]
+pub enum TdlnCmd {
+    /// Pipeline puro com políticas -> recibo + URL
+    Policy(RunArgs),
+    /// Pipeline com Certified Runtime no meio -> recibo + URL
+    Runtime(RunArgs),
+}
+
+#[derive(Subcommand)]
+pub enum LlmCmd {
+    /// Caminho premium (OpenAI/Anthropic) com tdln de pré-processamento
+    Engine(RunArgs),
+    /// Caminho local (Ollama/8B) com tdln de pré-processamento
+    Smart(RunArgs),
+}
+
+#[derive(Args, Clone)]
+pub struct RunArgs {
+    /// Manifesto (YAML/JSON). Default depende do subcomando.
+    #[arg(long)]
+    pub manifest: Option<PathBuf>,
+    /// Parâmetros k=v (override de vars) — reservado
+    #[arg(long, value_name="k=v", num_args=0..)]
+    pub var: Vec<String>,
+    /// Saída JSON ('-' para stdout)
+    #[arg(long, default_value = "-")]
+    pub out: String,
+}
+
+pub fn run_tdln(kind: &str, args: RunArgs) -> Result<()> {
+    let default = match kind {
+        "policy" => "manifests/tdln/policy.yaml",
+        "runtime" => "manifests/tdln/runtime.yaml",
+        _ => return Err(anyhow!("tdln kind inválido")),
+    };
+    let path = args.manifest.unwrap_or_else(|| PathBuf::from(default));
+    let m = parse_manifest_file(&path)?;
+    let steps = validate_steps(&m)?;
+    let out = serde_json::json!({
+        "ok": true, "cmd": format!("tdln.{kind}"),
+        "manifest": m.get("name").cloned().unwrap_or(serde_yaml::Value::Null),
+        "steps": steps
+    });
+    write_out(&args.out, &out)
+}
+
+pub fn run_llm(kind: &str, args: RunArgs) -> Result<()> {
+    let default = match kind {
+        "engine" => "manifests/llm/engine.yaml",
+        "smart" => "manifests/llm/smart.yaml",
+        _ => return Err(anyhow!("llm kind inválido")),
+    };
+    let path = args.manifest.unwrap_or_else(|| PathBuf::from(default));
+    let m = parse_manifest_file(&path)?;
+    let steps = validate_steps(&m)?;
+    let out = serde_json::json!({
+        "ok": true, "cmd": format!("llm.{kind}"),
+        "manifest": m.get("name").cloned().unwrap_or(serde_yaml::Value::Null),
+        "steps": steps
+    });
+    write_out(&args.out, &out)
+}
+
+// ------------- helpers -------------
+fn parse_manifest_file(p: &PathBuf) -> Result<serde_yaml::Value> {
+    let s = fs::read_to_string(p)?;
+    match serde_yaml::from_str::<serde_yaml::Value>(&s) {
+        Ok(v) => Ok(v),
+        Err(_) => Ok(serde_json::from_str::<serde_yaml::Value>(&s)?),
+    }
+}
+
+fn validate_steps(m: &serde_yaml::Value) -> Result<usize> {
+    let mut count = 0usize;
+    if let Some(pipeline) = m.get("pipeline").and_then(|v| v.as_sequence()) {
+        for step in pipeline {
+            if step.get("use").is_none() && step.get("use_").is_none() {
+                return Err(anyhow!("step sem 'use'"));
+            }
+            count += 1;
+        }
+    } else {
+        return Err(anyhow!("manifesto sem 'pipeline'"));
+    }
+    Ok(count)
+}
+
+fn write_out(path: &str, v: serde_json::Value) -> Result<()> {
+    let s = serde_json::to_string_pretty(&v)?;
+    if path == "-" { println!("{}", s); } else { fs::write(path, s)?; }
+    Ok(())
+}

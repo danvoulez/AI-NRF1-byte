@@ -89,3 +89,48 @@ fn permit_help() {
         .assert()
         .success();
 }
+
+#[test]
+fn tdln_help() {
+    Command::cargo_bin("ubl")
+        .unwrap()
+        .args(["tdln", "--help"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn tdln_policy_help() {
+    Command::cargo_bin("ubl")
+        .unwrap()
+        .args(["tdln", "policy", "--help"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn tdln_runtime_help() {
+    Command::cargo_bin("ubl")
+        .unwrap()
+        .args(["tdln", "runtime", "--help"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn llm_engine_help() {
+    Command::cargo_bin("ubl")
+        .unwrap()
+        .args(["llm", "engine", "--help"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn llm_smart_help() {
+    Command::cargo_bin("ubl")
+        .unwrap()
+        .args(["llm", "smart", "--help"])
+        .assert()
+        .success();
+}

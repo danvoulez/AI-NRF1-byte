@@ -1,0 +1,14 @@
+version: 1
+name: llm-smart
+includes: ["llm-smart-bundle"]
+backend: { mode: in-process }
+pipeline:
+  - use: cap-intake
+    with: { map: { query: "@inputs.prompt" } }
+  - use: policy.light
+  - use: cap-structure
+  - use: cap-llm-smart
+    with: { model: "ollama:llama3.1:8b", max_tokens: 8192, latency_budget_ms: 2500 }
+  - use: cap-enrich
+  - use: cap-transport
+outputs: { format: "json", fields: ["artifacts","metrics","receipt_cid","url_rica"] }

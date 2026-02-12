@@ -1,0 +1,13 @@
+[package]
+name = "cap-runtime"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "cap-runtime: descreve execução certificada via efeitos declarativos"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+modules-core = { path = "../../crates/modules-core" }
+nrf1 = { path = "../../crates/nrf1" }

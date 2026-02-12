@@ -1,0 +1,33 @@
+# Pacotão HARDENING 🔐
+
+Este pacote aplica **endurecimento** ao que já entregamos:
+- **Validação por JSON Schema** dos manifests
+- **Whitelist de capabilities** (nega passos desconhecidos)
+- **Limites e sanitização de entradas** no CLI (`ubl` → `modules.rs`)
+- **`cap-runtime` fortalecido**: allowlist de executores, HMAC opcional, idempotência (CID do plano), nonce/exp
+- **Schema**: `configs/schema/manifest.v1.json`
+
+## Como aplicar
+
+1. Copie os arquivos para as mesmas localizações no seu repo:
+   - `tools/ubl-cli/src/modules.rs` (substitui)
+   - `modules/cap-runtime/**` (substitui/sobe de versão)
+   - `configs/schema/manifest.v1.json` (novo)
+2. Aplique o patch de dependências no `ubl-cli`:
+   - `patches/tools_ubl_cli_Cargo_toml.patch` → `tools/ubl-cli/Cargo.toml`
+3. Build:
+```bash
+cargo build -p ubl-cli -p cap-runtime
+```
+
+## Notas de segurança
+- Manifests maiores que **256KB** são rejeitados.
+- Caminhos com **`..`** ou absolutos em `--manifest` são rejeitados.
+- `use` fora da **whitelist** → rejeitado.
+- Para `tdln.*` e `llm.*`, `outputs.fields` deve conter `receipt_cid` e `url_rica`.
+- `cap-runtime` não aceita **blobs inline**; apenas **CIDs** como inputs.
+
+## Próximos passos sugeridos
+- Adicionar **AppendReceipt idempotente** (plan_cid+trace_id) no executor.
+- Habilitar **CSP** e token TTL na **URL rica**.
+- Providers LLM com **cache/timeout/metrics** e tabela de custos pinada.

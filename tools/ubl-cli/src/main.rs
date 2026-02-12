@@ -13,6 +13,10 @@
 //!   ubl pricing price   --input <file>
 //!   ubl pricing quote   --input <file>
 //!   ubl pricing invoice --input <file>
+//!   ubl tdln policy run  --manifest <file> --out -
+//!   ubl tdln runtime run --manifest <file> --out -
+//!   ubl llm engine run   --out -
+//!   ubl llm smart  run   --out -
 
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
@@ -22,6 +26,8 @@ use std::{collections::HashMap, path::Path};
 
 mod llm;
 mod pricing;
+mod modules;
+mod execute;
 
 #[derive(Parser)]
 #[command(name = "ubl", version, about = "UBL Capsule CLI")]
@@ -61,6 +67,11 @@ enum Commands {
         #[command(subcommand)]
         cmd: PricingCmd,
     },
+    /// TDLN pipeline commands (policy, runtime)
+    Tdln {
+        #[command(subcommand)]
+        cmd: TdlnCmd,
+    },
 }
 
 #[derive(Subcommand)]
@@ -69,6 +80,30 @@ enum LlmCmd {
     Complete(llm::CompleteArgs),
     /// Judge an answer against criteria (local heuristic or via LLM)
     Judge(llm::JudgeArgs),
+    /// Run LLM Engine pipeline (premium, with tdln pre-processing)
+    Engine {
+        #[command(flatten)]
+        args: modules::RunArgs,
+    },
+    /// Run LLM Smart pipeline (local 8B, with tdln pre-processing)
+    Smart {
+        #[command(flatten)]
+        args: modules::RunArgs,
+    },
+}
+
+#[derive(Subcommand)]
+enum TdlnCmd {
+    /// Run TDLN policy pipeline
+    Policy {
+        #[command(flatten)]
+        args: modules::RunArgs,
+    },
+    /// Run TDLN runtime pipeline (with Certified Runtime)
+    Runtime {
+        #[command(flatten)]
+        args: modules::RunArgs,
+    },
 }
 
 #[derive(Subcommand)]
@@ -233,11 +268,17 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Llm { cmd } => match cmd {
             LlmCmd::Complete(a) => llm::llm_complete(a).await,
             LlmCmd::Judge(a) => llm::llm_judge(a).await,
+            LlmCmd::Engine { args } => modules::run_llm("engine", args),
+            LlmCmd::Smart { args } => modules::run_llm("smart", args),
         },
         Commands::Pricing { cmd } => match cmd {
             PricingCmd::Price(a) => pricing::price(a).await,
             PricingCmd::Quote(a) => pricing::quote(a).await,
             PricingCmd::Invoice(a) => pricing::invoice(a).await,
+        },
+        Commands::Tdln { cmd } => match cmd {
+            TdlnCmd::Policy { args } => modules::run_tdln("policy", args),
+            TdlnCmd::Runtime { args } => modules::run_tdln("runtime", args),
         },
     }
 }

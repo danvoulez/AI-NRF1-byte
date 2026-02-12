@@ -1,0 +1,6 @@
+*** Begin Patch
+*** Update File: Cargo.toml
+@@
+   "tools/bench-report",
++  "modules/cap-runtime",
+*** End Patch
