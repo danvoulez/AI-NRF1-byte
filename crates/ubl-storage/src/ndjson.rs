@@ -5,13 +5,15 @@ use std::io::Write;
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
-// NdjsonLedger — file-based append-only NDJSON ledger
+// NdjsonLedger — file-based append-only NDJSON ledger (ρ-canonical JSON)
 //
 // Layout:
 //   {base_dir}/{app}/{tenant}/{stream}.ndjson          (active)
 //   {base_dir}/{app}/{tenant}/{stream}.2026-W07.ndjson.gz  (compressed weekly)
 //
-// Each line is a self-contained JSON object (LedgerEntry).
+// Each line is a ρ-canonical JSON object (ai-json-nrf1 view).
+// Serialization path: LedgerEntry → nrf_core::Value → ρ-normalize → to_json.
+// Deserialization path: JSON line → from_canonical_json (validates NRF round-trip).
 // Files are append-only. No line is ever modified or deleted.
 // Weekly compression rotates the active file into a gzipped archive.
 // ---------------------------------------------------------------------------
@@ -77,7 +79,7 @@ impl NdjsonLedger {
                     if line.trim().is_empty() {
                         continue;
                     }
-                    match serde_json::from_str::<LedgerEntry>(&line) {
+                    match LedgerEntry::from_canonical_json(&line) {
                         Ok(entry) => entries.push(entry),
                         Err(e) => {
                             tracing::warn!(error = %e, "skipping malformed ledger line in archive");
@@ -98,7 +100,7 @@ impl NdjsonLedger {
                 if line.trim().is_empty() {
                     continue;
                 }
-                match serde_json::from_str::<LedgerEntry>(&line) {
+                match LedgerEntry::from_canonical_json(&line) {
                     Ok(entry) => entries.push(entry),
                     Err(e) => {
                         tracing::warn!(error = %e, "skipping malformed ledger line");
@@ -266,8 +268,8 @@ impl LedgerWriter for NdjsonLedger {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        // Serialize to JSON line
-        let mut line = serde_json::to_string(entry)?;
+        // Serialize to ρ-canonical JSON line (NRF → ρ-normalize → ai-json-nrf1)
+        let mut line = entry.to_canonical_json()?;
         line.push('\n');
 
         // Append to file (atomic per-line via O_APPEND)
@@ -343,6 +345,39 @@ mod tests {
         // But reading stream should still return entries from archive
         let entries = ledger.read_stream("myapp", "t1", "executions").unwrap();
         assert_eq!(entries.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_canonical_round_trip() {
+        let entry = test_entry("myapp", "default");
+
+        // Serialize to canonical JSON
+        let json_line = entry.to_canonical_json().unwrap();
+
+        // Verify it's valid JSON with sorted keys (ρ-canonical BTreeMap)
+        let parsed: serde_json::Value = serde_json::from_str(&json_line).unwrap();
+        assert!(parsed.is_object());
+        let obj = parsed.as_object().unwrap();
+        // Keys must be sorted (BTreeMap guarantee from ρ-normalize)
+        let keys: Vec<&String> = obj.keys().collect();
+        let mut sorted_keys = keys.clone();
+        sorted_keys.sort();
+        assert_eq!(keys, sorted_keys, "keys must be ρ-sorted");
+
+        // Verify NRF round-trip: JSON → NRF Value → JSON should be identical
+        let nrf_val = ubl_json_view::from_json(&parsed).unwrap();
+        let back_json = ubl_json_view::to_json(&nrf_val);
+        assert_eq!(parsed, back_json, "canonical JSON must survive NRF round-trip");
+
+        // Deserialize back to LedgerEntry
+        let restored = LedgerEntry::from_canonical_json(&json_line).unwrap();
+        assert_eq!(restored.app, "myapp");
+        assert_eq!(restored.tenant, "default");
+        assert_eq!(restored.decision, Some("ALLOW".into()));
+
+        // Verify idempotent: re-serialize must produce identical bytes
+        let json_line_2 = restored.to_canonical_json().unwrap();
+        assert_eq!(json_line, json_line_2, "canonical serialization must be idempotent");
     }
 
     #[tokio::test]

@@ -14,6 +14,8 @@ tokio = { version = "1", features = ["macros", "fs", "io-util", "rt"] }
 flate2 = "1"
 tracing = "0.1"
 anyhow = "1"
+nrf-core = { path = "../../impl/rust/nrf-core" }
+ubl_json_view = { path = "../../impl/rust/ubl_json_view" }
 
 # S3 (optional — only needed if you use S3Store directly)
 aws-config = { version = "1", optional = true }

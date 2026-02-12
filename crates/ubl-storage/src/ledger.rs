@@ -1,4 +1,6 @@
+use nrf_core::Value;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -84,6 +86,153 @@ impl LedgerEntry {
             }
             LedgerEvent::PipelineExecuted => "executions",
         }
+    }
+
+    /// Convert to ρ-canonical NRF Value.
+    ///
+    /// This is the blessed path: struct → nrf_core::Value → ρ-normalize.
+    /// The resulting Value has deterministic key order (BTreeMap),
+    /// NFC-normalized strings, and null values stripped.
+    pub fn to_canonical_value(&self) -> Result<Value, LedgerError> {
+        let mut m = BTreeMap::new();
+
+        m.insert("ts".into(), Value::String(self.ts.clone()));
+        m.insert("event".into(), Value::String(event_to_string(&self.event)));
+        m.insert("app".into(), Value::String(self.app.clone()));
+        m.insert("tenant".into(), Value::String(self.tenant.clone()));
+
+        if let Some(uid) = &self.user_id {
+            m.insert("user_id".into(), Value::String(uid.to_string()));
+        }
+        // else: ρ rule 5 — absence, not null
+
+        if !self.roles.is_empty() {
+            let roles: Vec<Value> = self.roles.iter()
+                .map(|r| Value::String(r.clone()))
+                .collect();
+            m.insert("roles".into(), Value::Array(roles));
+        }
+
+        m.insert("entity_id".into(), Value::String(self.entity_id.to_string()));
+        m.insert("cid".into(), Value::String(self.cid.clone()));
+        m.insert("did".into(), Value::String(self.did.clone()));
+
+        if let Some(d) = &self.decision {
+            m.insert("decision".into(), Value::String(d.clone()));
+        }
+
+        // payload: convert serde_json::Value → nrf_core::Value via ubl_json_view
+        let nrf_payload = ubl_json_view::from_json(&self.payload)
+            .map_err(|e| LedgerError::Serialization(format!("payload→NRF: {e}")))?;
+        m.insert("payload".into(), nrf_payload);
+
+        // ρ-normalize: NFC strings, strip nulls, sort keys
+        nrf_core::rho::normalize(&Value::Map(m))
+            .map_err(|e| LedgerError::Serialization(format!("ρ-normalize: {e}")))
+    }
+
+    /// Serialize to canonical JSON string (one NDJSON line).
+    ///
+    /// Path: struct → nrf_core::Value → ρ-normalize → ubl_json_view::to_json → JSON string.
+    /// This guarantees deterministic output: same entry → same bytes → same hash.
+    pub fn to_canonical_json(&self) -> Result<String, LedgerError> {
+        let canonical = self.to_canonical_value()?;
+        let json = ubl_json_view::to_json(&canonical);
+        serde_json::to_string(&json).map_err(|e| LedgerError::Serialization(e.to_string()))
+    }
+
+    /// Deserialize from a canonical JSON line back into a LedgerEntry.
+    ///
+    /// Reads the canonical JSON, converts via from_json → NRF Value,
+    /// then extracts fields. This is the inverse of to_canonical_json.
+    pub fn from_canonical_json(line: &str) -> Result<Self, LedgerError> {
+        // Parse JSON
+        let json: serde_json::Value = serde_json::from_str(line)?;
+
+        // Validate it round-trips through canonical NRF
+        let _nrf = ubl_json_view::from_json(&json)
+            .map_err(|e| LedgerError::Serialization(format!("from_json: {e}")))?;
+
+        // Extract fields from the JSON object
+        let obj = json.as_object()
+            .ok_or_else(|| LedgerError::Serialization("expected JSON object".into()))?;
+
+        let ts = obj.get("ts")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let event = obj.get("event")
+            .and_then(|v| v.as_str())
+            .map(string_to_event)
+            .unwrap_or(LedgerEvent::PipelineExecuted);
+
+        let app = obj.get("app")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let tenant = obj.get("tenant")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let user_id = obj.get("user_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<Uuid>().ok());
+
+        let roles: Vec<String> = obj.get("roles")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .unwrap_or_default();
+
+        let entity_id = obj.get("entity_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<Uuid>().ok())
+            .unwrap_or(Uuid::nil());
+
+        let cid = obj.get("cid")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let did = obj.get("did")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let decision = obj.get("decision")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+
+        let payload = obj.get("payload")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+
+        Ok(Self {
+            ts, event, app, tenant, user_id, roles,
+            entity_id, cid, did, decision, payload,
+        })
+    }
+}
+
+fn event_to_string(e: &LedgerEvent) -> String {
+    match e {
+        LedgerEvent::ReceiptCreated => "receipt_created",
+        LedgerEvent::GhostCreated => "ghost_created",
+        LedgerEvent::GhostPromoted => "ghost_promoted",
+        LedgerEvent::GhostExpired => "ghost_expired",
+        LedgerEvent::PipelineExecuted => "pipeline_executed",
+    }.to_string()
+}
+
+fn string_to_event(s: &str) -> LedgerEvent {
+    match s {
+        "receipt_created" => LedgerEvent::ReceiptCreated,
+        "ghost_created" => LedgerEvent::GhostCreated,
+        "ghost_promoted" => LedgerEvent::GhostPromoted,
+        "ghost_expired" => LedgerEvent::GhostExpired,
+        _ => LedgerEvent::PipelineExecuted,
     }
 }
 

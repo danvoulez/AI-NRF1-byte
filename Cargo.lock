@@ -5172,11 +5172,13 @@ dependencies = [
  "aws-sdk-s3",
  "chrono",
  "flate2",
+ "nrf-core",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tracing",
+ "ubl_json_view",
  "uuid",
 ]
 
