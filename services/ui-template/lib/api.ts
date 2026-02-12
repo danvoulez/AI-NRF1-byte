@@ -84,7 +84,7 @@ async function get<T>(path: string): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export async function runPipeline(req: RunRequest): Promise<RunResponse> {
-  return post<RunResponse>("/modules/run", req)
+  return post<RunResponse>("/api/v0/run", req)
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ export function hopsToProofs(hops: HopInfo[]): Proof[] {
 
 export async function fetchExecutions(): Promise<Execution[]> {
   try {
-    const data = await get<Execution[]>("/api/executions")
+    const data = await get<Execution[]>("/api/v0/executions")
     return data
   } catch {
     return mockExecutions
@@ -176,7 +176,7 @@ export async function fetchReceipt(cid: string): Promise<{
       sirp: SIRPNode[]
       proofs: Proof[]
       evidence: Evidence[]
-    }>(`/api/receipts/${encodeURIComponent(cid)}`)
+    }>(`/api/v0/receipts/${encodeURIComponent(cid)}`)
     return data
   } catch {
     const exec = mockExecutions.find((e) => e.cid === cid) || mockExecutions[0]
@@ -191,7 +191,7 @@ export async function fetchReceipt(cid: string): Promise<{
 
 export async function fetchAuditLog(): Promise<AuditEntry[]> {
   try {
-    return await get<AuditEntry[]>("/api/audits")
+    return await get<AuditEntry[]>("/api/v0/audits")
   } catch {
     return mockAuditLog
   }
@@ -199,7 +199,7 @@ export async function fetchAuditLog(): Promise<AuditEntry[]> {
 
 export async function fetchMetrics(): Promise<typeof mockMetrics> {
   try {
-    return await get<typeof mockMetrics>("/api/metrics")
+    return await get<typeof mockMetrics>("/api/v0/metrics")
   } catch {
     return mockMetrics
   }
@@ -207,7 +207,7 @@ export async function fetchMetrics(): Promise<typeof mockMetrics> {
 
 export async function fetchEvidence(): Promise<Evidence[]> {
   try {
-    return await get<Evidence[]>("/api/evidence")
+    return await get<Evidence[]>("/api/v0/evidence")
   } catch {
     return mockEvidence
   }
@@ -215,7 +215,7 @@ export async function fetchEvidence(): Promise<Evidence[]> {
 
 export async function fetchPolicies(): Promise<import("./mock-data").PolicyPack[]> {
   try {
-    return await get<import("./mock-data").PolicyPack[]>("/api/policies")
+    return await get<import("./mock-data").PolicyPack[]>("/api/v0/policies")
   } catch {
     return mockPolicyPacks
   }

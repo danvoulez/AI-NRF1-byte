@@ -29,6 +29,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 ubl-storage = { path = "../../crates/ubl-storage" }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+urlencoding = "2"
 
 # --- MODULES feature: compiles cap modules + runner into the same binary ---
 module-runner = { path = "../../crates/module-runner", features = ["server", "live"], optional = true }

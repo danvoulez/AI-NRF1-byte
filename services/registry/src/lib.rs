@@ -2,7 +2,11 @@ pub mod middleware;
 pub mod routes;
 pub mod state;
 
-use axum::{routing::get, Json, Router};
+use axum::{
+    http::HeaderMap,
+    routing::get,
+    Json, Router,
+};
 use serde::Serialize;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -41,6 +45,37 @@ async fn version() -> Json<Version> {
     })
 }
 
+#[derive(Serialize)]
+struct WhoAmI {
+    api_version: &'static str,
+    registry_version: &'static str,
+    git_sha: &'static str,
+    tenant: Option<String>,
+    product: Option<String>,
+    #[cfg(feature = "modules")]
+    modules: bool,
+}
+
+async fn whoami(headers: HeaderMap) -> Json<WhoAmI> {
+    let tenant = headers
+        .get("x-tenant")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let product = headers
+        .get("x-product")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    Json(WhoAmI {
+        api_version: "v0",
+        registry_version: env!("CARGO_PKG_VERSION"),
+        git_sha: option_env!("BUILD_GIT_SHA").unwrap_or("dev"),
+        tenant,
+        product,
+        #[cfg(feature = "modules")]
+        modules: true,
+    })
+}
+
 /// Build the full Axum router for the registry service.
 /// Used by main.rs and integration tests.
 pub fn build_router(state: Arc<state::AppState>) -> Router {
@@ -49,6 +84,7 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
         .route("/healthz", get(health))
         .route("/readyz", get(health))
         .route("/version", get(version))
+        .route("/api/v0/whoami", get(whoami))
         .nest("/v1", routes::receipts::router())
         .nest("/v1", routes::ghosts::router())
         .with_state(state);

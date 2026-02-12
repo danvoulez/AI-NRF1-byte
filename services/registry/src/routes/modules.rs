@@ -261,7 +261,7 @@ async fn run_pipeline(
 }
 
 // ---------------------------------------------------------------------------
-// GET /v1/executions — list stored executions
+// GET /api/v0/executions — list stored executions
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "modules")]
@@ -284,7 +284,7 @@ async fn list_executions(
 }
 
 // ---------------------------------------------------------------------------
-// GET /v1/receipts/:cid — receipt detail (SIRP, proofs, evidence)
+// GET /api/v0/receipts/:cid — receipt detail (SIRP, proofs, evidence)
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "modules")]
@@ -292,6 +292,7 @@ async fn get_receipt(
     State(state): State<Arc<ModulesState>>,
     Path(cid): Path<String>,
 ) -> impl IntoResponse {
+    let cid = urlencoding::decode(&cid).unwrap_or(std::borrow::Cow::Borrowed(&cid)).into_owned();
     let execs = state.store.executions.read().unwrap();
     let exec = execs.iter().find(|e| e.cid == cid);
     match exec {
@@ -351,7 +352,7 @@ async fn get_receipt(
 }
 
 // ---------------------------------------------------------------------------
-// GET /v1/metrics — dashboard stats
+// GET /api/v0/metrics — dashboard stats
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "modules")]
@@ -470,10 +471,10 @@ pub fn modules_router(
     permit_state: Arc<PermitState>,
 ) -> Router {
     let run_router = Router::new()
-        .route("/modules/run", post(run_pipeline))
-        .route("/api/executions", get(list_executions))
-        .route("/api/receipts/:cid", get(get_receipt))
-        .route("/api/metrics", get(get_metrics))
+        .route("/api/v0/run", post(run_pipeline))
+        .route("/api/v0/executions", get(list_executions))
+        .route("/api/v0/receipts/:cid", get(get_receipt))
+        .route("/api/v0/metrics", get(get_metrics))
         .with_state(modules_state);
 
     run_router.merge(permit_router(permit_state))
