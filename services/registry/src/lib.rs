@@ -5,6 +5,7 @@ pub mod state;
 use axum::{routing::get, Json, Router};
 use serde::Serialize;
 use std::sync::Arc;
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Serialize)]
 struct Health {
@@ -66,5 +67,10 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
             .merge(routes::cap_http::cap_http_router())
     };
 
-    base
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    base.layer(cors)
 }

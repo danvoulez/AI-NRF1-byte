@@ -156,7 +156,7 @@ export function hopsToProofs(hops: HopInfo[]): Proof[] {
 
 export async function fetchExecutions(): Promise<Execution[]> {
   try {
-    const data = await get<Execution[]>("/v1/executions")
+    const data = await get<Execution[]>("/api/executions")
     return data
   } catch {
     return mockExecutions
@@ -175,7 +175,7 @@ export async function fetchReceipt(cid: string): Promise<{
       sirp: SIRPNode[]
       proofs: Proof[]
       evidence: Evidence[]
-    }>(`/v1/receipts/${cid}`)
+    }>(`/api/receipts/${encodeURIComponent(cid)}`)
     return data
   } catch {
     const exec = mockExecutions.find((e) => e.cid === cid) || mockExecutions[0]
@@ -190,7 +190,7 @@ export async function fetchReceipt(cid: string): Promise<{
 
 export async function fetchAuditLog(): Promise<AuditEntry[]> {
   try {
-    return await get<AuditEntry[]>("/v1/audits")
+    return await get<AuditEntry[]>("/api/audits")
   } catch {
     return mockAuditLog
   }
@@ -198,7 +198,7 @@ export async function fetchAuditLog(): Promise<AuditEntry[]> {
 
 export async function fetchMetrics(): Promise<typeof mockMetrics> {
   try {
-    return await get<typeof mockMetrics>("/v1/metrics")
+    return await get<typeof mockMetrics>("/api/metrics")
   } catch {
     return mockMetrics
   }

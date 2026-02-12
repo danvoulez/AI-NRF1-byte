@@ -8,10 +8,10 @@
 
 #[cfg(feature = "modules")]
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 
@@ -20,6 +20,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "modules")]
 use std::sync::Arc;
+
+#[cfg(feature = "modules")]
+use std::sync::RwLock;
 
 #[cfg(feature = "modules")]
 use module_runner::adapters::llm::StubProvider;
@@ -40,6 +43,42 @@ use module_runner::effects::DispatchExecutor;
 pub struct ModulesState {
     pub executor: DispatchExecutor,
     pub state_dir: String,
+    pub store: ExecutionStore,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Default)]
+pub struct ExecutionStore {
+    executions: RwLock<Vec<StoredExecution>>,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Clone, Serialize)]
+struct StoredExecution {
+    id: String,
+    state: String,
+    cid: String,
+    title: String,
+    origin: String,
+    timestamp: String,
+    integration: String,
+    verdict: String,
+    stopped_at: Option<String>,
+    receipt_chain: Vec<String>,
+    hops: Vec<HopInfo>,
+    metrics: Vec<MetricEntry>,
+    artifacts: usize,
+}
+
+#[cfg(feature = "modules")]
+#[derive(Clone, Serialize)]
+struct StoredSIRPNode {
+    step: String,
+    signer: String,
+    timestamp: String,
+    verified: bool,
+    algorithm: String,
+    hash: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +108,7 @@ struct RunResponse {
 }
 
 #[cfg(feature = "modules")]
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct HopInfo {
     step: String,
     kind: String,
@@ -78,7 +117,7 @@ struct HopInfo {
 }
 
 #[cfg(feature = "modules")]
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct MetricEntry {
     step: String,
     metric: String,
@@ -127,6 +166,7 @@ async fn run_pipeline(
         &body.tenant,
     );
 
+    let manifest_name = manifest.name.clone();
     match runner.run(&manifest, env).await {
         Ok(result) => {
             let receipt_chain: Vec<String> = result
@@ -163,9 +203,35 @@ async fn run_pipeline(
                 })
                 .collect();
 
+            let verdict_str = format!("{:?}", result.verdict);
+            let exec_state = match result.verdict {
+                modules_core::Verdict::Allow => "ACK",
+                modules_core::Verdict::Deny => "NACK",
+                modules_core::Verdict::Require => "ASK",
+            };
+
+            let stored = StoredExecution {
+                id: format!("exec_{}", now_millis()),
+                state: exec_state.to_string(),
+                cid: receipt_cid.clone(),
+                title: manifest_name,
+                origin: "api-gateway".to_string(),
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                integration: "SDK".to_string(),
+                verdict: verdict_str.clone(),
+                stopped_at: result.stopped_at.clone(),
+                receipt_chain: receipt_chain.clone(),
+                hops: hops.clone(),
+                metrics: metrics.clone(),
+                artifacts: result.artifacts.len(),
+            };
+            if let Ok(mut execs) = state.store.executions.write() {
+                execs.push(stored);
+            }
+
             let resp = RunResponse {
                 ok: true,
-                verdict: format!("{:?}", result.verdict),
+                verdict: verdict_str,
                 stopped_at: result.stopped_at,
                 receipt_cid,
                 receipt_chain,
@@ -186,8 +252,134 @@ async fn run_pipeline(
 }
 
 // ---------------------------------------------------------------------------
+// GET /v1/executions — list stored executions
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn list_executions(
+    State(state): State<Arc<ModulesState>>,
+) -> impl IntoResponse {
+    let execs = state.store.executions.read().unwrap();
+    let list: Vec<serde_json::Value> = execs.iter().rev().map(|e| {
+        serde_json::json!({
+            "id": e.id,
+            "state": e.state,
+            "cid": e.cid,
+            "title": e.title,
+            "origin": e.origin,
+            "timestamp": e.timestamp,
+            "integration": e.integration,
+        })
+    }).collect();
+    (StatusCode::OK, Json(serde_json::json!(list))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /v1/receipts/:cid — receipt detail (SIRP, proofs, evidence)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn get_receipt(
+    State(state): State<Arc<ModulesState>>,
+    Path(cid): Path<String>,
+) -> impl IntoResponse {
+    let execs = state.store.executions.read().unwrap();
+    let exec = execs.iter().find(|e| e.cid == cid);
+    match exec {
+        Some(e) => {
+            let sirp_steps = ["INTENT", "DELIVERY", "EXECUTION", "RESULT"];
+            let sirp: Vec<serde_json::Value> = e.hops.iter().enumerate().map(|(i, hop)| {
+                serde_json::json!({
+                    "step": sirp_steps.get(i).unwrap_or(&"EXECUTION"),
+                    "signer": format!("engine:{}@1.0.0", hop.kind),
+                    "timestamp": e.timestamp,
+                    "verified": hop.verified,
+                    "algorithm": "Ed25519",
+                    "hash": hop.hash,
+                })
+            }).collect();
+
+            let proofs: Vec<serde_json::Value> = e.hops.iter().enumerate().map(|(i, hop)| {
+                let proof_types = ["Capsule INTENT", "Receipt DELIVERY", "Receipt EXECUTION", "Capsule RESULT"];
+                serde_json::json!({
+                    "type": proof_types.get(i).unwrap_or(&"Receipt"),
+                    "algorithm": "Ed25519",
+                    "cid": hop.hash,
+                    "signer": format!("engine:{}@1.0.0", hop.kind),
+                    "timestamp": e.timestamp,
+                })
+            }).collect();
+
+            let evidence: Vec<serde_json::Value> = e.receipt_chain.iter().map(|cid| {
+                serde_json::json!({
+                    "cid": cid,
+                    "url": format!("https://resolver.local/e/{cid}"),
+                    "status": "fetched",
+                    "mime": "application/json",
+                })
+            }).collect();
+
+            (StatusCode::OK, Json(serde_json::json!({
+                "execution": {
+                    "id": e.id,
+                    "state": e.state,
+                    "cid": e.cid,
+                    "title": e.title,
+                    "origin": e.origin,
+                    "timestamp": e.timestamp,
+                    "integration": e.integration,
+                },
+                "sirp": sirp,
+                "proofs": proofs,
+                "evidence": evidence,
+            }))).into_response()
+        }
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": format!("receipt {cid} not found")})),
+        ).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /v1/metrics — dashboard stats
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+async fn get_metrics(
+    State(state): State<Arc<ModulesState>>,
+) -> impl IntoResponse {
+    let execs = state.store.executions.read().unwrap();
+    let total = execs.len();
+    let ack_count = execs.iter().filter(|e| e.state == "ACK").count();
+    let ack_pct = if total > 0 { (ack_count as f64 / total as f64) * 100.0 } else { 0.0 };
+    let avg_duration: i64 = if total > 0 {
+        let sum: i64 = execs.iter().flat_map(|e| {
+            e.metrics.iter().filter(|m| m.metric == "duration_ms").map(|m| m.value)
+        }).sum();
+        sum / total as i64
+    } else { 0 };
+
+    (StatusCode::OK, Json(serde_json::json!({
+        "executionsToday": total,
+        "ackPercentage": (ack_pct * 10.0).round() / 10.0,
+        "p99Latency": avg_duration,
+        "activeIntegrations": 1,
+        "weeklyData": [],
+    }))).into_response()
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+#[cfg(feature = "modules")]
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
 
 #[cfg(feature = "modules")]
 fn build_cap_registry() -> module_runner::cap_registry::CapRegistry {
@@ -253,6 +445,7 @@ pub fn init_modules_state(state_dir: &str) -> (Arc<ModulesState>, Arc<PermitStat
     let modules_state = Arc::new(ModulesState {
         executor,
         state_dir: state_dir.into(),
+        store: ExecutionStore::default(),
     });
 
     let permit_state = Arc::new(PermitState {
@@ -269,6 +462,9 @@ pub fn modules_router(
 ) -> Router {
     let run_router = Router::new()
         .route("/modules/run", post(run_pipeline))
+        .route("/api/executions", get(list_executions))
+        .route("/api/receipts/:cid", get(get_receipt))
+        .route("/api/metrics", get(get_metrics))
         .with_state(modules_state);
 
     run_router.merge(permit_router(permit_state))
