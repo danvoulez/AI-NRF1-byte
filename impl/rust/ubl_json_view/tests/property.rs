@@ -59,7 +59,9 @@ proptest! {
 
     #[test]
     fn roundtrip_nrf_json_nrf(v in arb_value()) {
-        let nrf1 = nrf_core::encode(&v);
+        // Canon 3: encode through ρ first (the canonical path)
+        let normalized = nrf_core::rho::normalize(&v).expect("ρ must succeed on generated values");
+        let nrf1 = nrf_core::encode(&normalized);
         let j = ubl_json_view::nrf_bytes_to_json(&nrf1).expect("nrf_bytes_to_json");
         let nrf2 = ubl_json_view::json_to_nrf_bytes(&j).expect("json_to_nrf_bytes");
         prop_assert_eq!(nrf1, nrf2, "NRF roundtrip failed");

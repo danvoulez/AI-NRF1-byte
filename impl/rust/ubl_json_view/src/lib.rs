@@ -161,9 +161,12 @@ pub fn from_json(j: &serde_json::Value) -> Result<Value, JsonViewError> {
 }
 
 /// Convert JSON to NRF bytes (encode after parsing).
+/// Canon 3: passes through ρ before encode.
 pub fn json_to_nrf_bytes(j: &serde_json::Value) -> Result<Vec<u8>, JsonViewError> {
     let v = from_json(j)?;
-    Ok(nrf_core::encode(&v))
+    let normalized = nrf_core::rho::normalize(&v)
+        .map_err(|e| JsonViewError::NrfDecode(e.to_string()))?;
+    Ok(nrf_core::encode(&normalized))
 }
 
 fn validate_string(s: &str) -> Result<(), JsonViewError> {
@@ -207,8 +210,11 @@ pub struct CanonBytes(Vec<u8>);
 
 impl CanonBytes {
     /// Encode an NRF Value into canonical bytes.
-    pub fn from_value(v: &Value) -> Self {
-        Self(nrf_core::encode(v))
+    /// Canon 3: passes through ρ before encode.
+    pub fn from_value(v: &Value) -> Result<Self, JsonViewError> {
+        let normalized = nrf_core::rho::normalize(v)
+            .map_err(|e| JsonViewError::NrfDecode(e.to_string()))?;
+        Ok(Self(nrf_core::encode(&normalized)))
     }
 
     /// Decode canonical bytes back to an NRF Value.
@@ -257,9 +263,12 @@ impl JsonView {
     }
 
     /// Convert back to canonical bytes (the only thing you hash/sign).
+    /// Canon 3: passes through ρ before encode.
     pub fn to_canon_bytes(&self) -> Result<CanonBytes, JsonViewError> {
         let v = from_json(&self.0)?;
-        Ok(CanonBytes(nrf_core::encode(&v)))
+        let normalized = nrf_core::rho::normalize(&v)
+            .map_err(|e| JsonViewError::NrfDecode(e.to_string()))?;
+        Ok(CanonBytes(nrf_core::encode(&normalized)))
     }
 }
 
@@ -504,7 +513,7 @@ mod tests {
         let mut m = BTreeMap::new();
         m.insert("key".into(), Value::String("value".into()));
         let v = Value::Map(m);
-        let canon = CanonBytes::from_value(&v);
+        let canon = CanonBytes::from_value(&v).unwrap();
         let back = canon.to_value().unwrap();
         assert_eq!(v, back);
     }
@@ -512,7 +521,7 @@ mod tests {
     #[test]
     fn canon_bytes_cid_format() {
         let v = Value::String("hello".into());
-        let canon = CanonBytes::from_value(&v);
+        let canon = CanonBytes::from_value(&v).unwrap();
         let cid = canon.cid();
         assert!(cid.starts_with("b3:"));
         assert_eq!(cid.len(), 3 + 64); // "b3:" + 64 hex chars
@@ -521,7 +530,7 @@ mod tests {
     #[test]
     fn canon_to_json_view_roundtrip() {
         let v = Value::Int(42);
-        let canon = CanonBytes::from_value(&v);
+        let canon = CanonBytes::from_value(&v).unwrap();
         let view = canon.to_json_view().unwrap();
         let back = view.to_canon_bytes().unwrap();
         assert_eq!(canon, back);
