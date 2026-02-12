@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { fetchMetrics, fetchExecutions, type Execution } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { fetchMetrics, fetchExecutions, runPipeline, type Execution } from "@/lib/api"
 import { mockMetrics, mockExecutions } from "@/lib/mock-data"
 import { BadgeEstado } from "@/components/tdln/badge-estado"
 import { CIDChip } from "@/components/tdln/cid-chip"
-import { Activity, TrendingUp, Clock, Plug } from "lucide-react"
+import { Activity, TrendingUp, Clock, Plug, Play, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { toast } from "sonner"
 
 function buildMetricCards(metrics: typeof mockMetrics) {
   return [
@@ -49,13 +52,84 @@ export default function ConsoleDashboard() {
     fetchExecutions().then(setExecutions)
   }, [])
 
+  const [showRun, setShowRun] = useState(false)
+  const [runTitle, setRunTitle] = useState("")
+  const [runData, setRunData] = useState("")
+  const [running, setRunning] = useState(false)
+
+  const handleRun = async () => {
+    if (!runTitle.trim()) return
+    setRunning(true)
+    try {
+      const resp = await runPipeline({
+        tenant: "demo",
+        manifest: {
+          v: "1",
+          name: runTitle,
+          version: "1.0.0",
+          pipeline: [
+            { step_id: "intake", kind: "cap-intake", version: "*", config: { mappings: [{ from: "data", to: "payload" }] } },
+          ],
+        },
+        env: { data: runData || "payload" },
+      })
+      toast.success(`${resp.verdict} — ${resp.receipt_cid.slice(0, 24)}...`)
+      setShowRun(false)
+      setRunTitle("")
+      setRunData("")
+      fetchMetrics().then(setMetrics)
+      fetchExecutions().then(setExecutions)
+    } catch (e: any) {
+      toast.error(e.message || "Pipeline failed")
+    } finally {
+      setRunning(false)
+    }
+  }
+
   const metricCards = buildMetricCards(metrics)
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Visao Geral</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Metricas e atividade recente do seu tenant.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Visao Geral</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Metricas e atividade recente do seu tenant.</p>
+        </div>
+        <Button onClick={() => setShowRun(!showRun)} size="sm">
+          <Play className="mr-1.5 h-4 w-4" />
+          Executar Pipeline
+        </Button>
       </div>
+
+      {showRun && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className="text-xs font-medium text-muted-foreground">Titulo</label>
+                <Input
+                  placeholder="Ex: Transacao financeira 4821"
+                  value={runTitle}
+                  onChange={(e) => setRunTitle(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-medium text-muted-foreground">Dados (payload)</label>
+                <Input
+                  placeholder="Ex: hello world"
+                  value={runData}
+                  onChange={(e) => setRunData(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <Button onClick={handleRun} disabled={running || !runTitle.trim()}>
+                {running ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
+                {running ? "Executando..." : "Executar"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Metric Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

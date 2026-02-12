@@ -25,6 +25,12 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 #[cfg(feature = "modules")]
+use std::collections::VecDeque;
+
+#[cfg(feature = "modules")]
+const MAX_EXECUTIONS: usize = 500;
+
+#[cfg(feature = "modules")]
 use module_runner::adapters::llm::StubProvider;
 #[cfg(feature = "modules")]
 use module_runner::adapters::permit::PermitStore;
@@ -49,7 +55,7 @@ pub struct ModulesState {
 #[cfg(feature = "modules")]
 #[derive(Default)]
 pub struct ExecutionStore {
-    executions: RwLock<Vec<StoredExecution>>,
+    executions: RwLock<VecDeque<StoredExecution>>,
 }
 
 #[cfg(feature = "modules")]
@@ -226,7 +232,10 @@ async fn run_pipeline(
                 artifacts: result.artifacts.len(),
             };
             if let Ok(mut execs) = state.store.executions.write() {
-                execs.push(stored);
+                if execs.len() >= MAX_EXECUTIONS {
+                    execs.pop_front();
+                }
+                execs.push_back(stored);
             }
 
             let resp = RunResponse {

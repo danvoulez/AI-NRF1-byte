@@ -1,17 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { mockPolicyPacks, type PolicyPack } from "@/lib/mock-data"
+import { fetchPolicies, type PolicyPack } from "@/lib/api"
 import { ShieldCheck, ChevronRight, BookOpen, Settings2 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
 export default function PoliciesPage() {
-  const [packs, setPacks] = useState(mockPolicyPacks)
+  const [packs, setPacks] = useState<PolicyPack[]>([])
+
+  useEffect(() => {
+    fetchPolicies().then(setPacks)
+  }, [])
   const [selectedPack, setSelectedPack] = useState<PolicyPack | null>(null)
 
   const togglePack = (id: string) => {

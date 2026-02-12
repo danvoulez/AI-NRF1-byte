@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { CIDChip } from "@/components/tdln/cid-chip"
-import { mockEvidence } from "@/lib/mock-data"
+import { fetchEvidence, type Evidence } from "@/lib/api"
 import { Search, Lock, RefreshCw, ExternalLink, Database, ChevronDown, Star, Globe } from "lucide-react"
 import { toast } from "sonner"
 
@@ -25,8 +25,13 @@ const mockMirrors = [
 export default function EvidencePage() {
   const [query, setQuery] = useState("")
   const [expandedCid, setExpandedCid] = useState<string | null>(null)
-  
-  const filtered = mockEvidence.filter((e) =>
+  const [evidence, setEvidence] = useState<Evidence[]>([])
+
+  useEffect(() => {
+    fetchEvidence().then(setEvidence)
+  }, [])
+
+  const filtered = evidence.filter((e) =>
     query ? e.cid.includes(query) || e.url.includes(query) : true
   )
 

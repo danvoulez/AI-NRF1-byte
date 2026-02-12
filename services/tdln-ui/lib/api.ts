@@ -14,6 +14,7 @@ import {
   mockEvidence,
   mockAuditLog,
   mockMetrics,
+  mockPolicyPacks,
 } from "./mock-data"
 
 // ---------------------------------------------------------------------------
@@ -201,6 +202,22 @@ export async function fetchMetrics(): Promise<typeof mockMetrics> {
     return await get<typeof mockMetrics>("/api/metrics")
   } catch {
     return mockMetrics
+  }
+}
+
+export async function fetchEvidence(): Promise<Evidence[]> {
+  try {
+    return await get<Evidence[]>("/api/evidence")
+  } catch {
+    return mockEvidence
+  }
+}
+
+export async function fetchPolicies(): Promise<import("./mock-data").PolicyPack[]> {
+  try {
+    return await get<import("./mock-data").PolicyPack[]>("/api/policies")
+  } catch {
+    return mockPolicyPacks
   }
 }
 

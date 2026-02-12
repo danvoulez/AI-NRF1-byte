@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { mockAuditLog } from "@/lib/mock-data"
+import { fetchAuditLog, type AuditEntry } from "@/lib/api"
 import { Search, Download, Shield } from "lucide-react"
 
 const actionLabels: Record<string, string> = {
@@ -27,8 +27,13 @@ const actionLabels: Record<string, string> = {
 
 export default function AuditsPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
 
-  const filtered = mockAuditLog.filter((entry) =>
+  useEffect(() => {
+    fetchAuditLog().then(setAuditLog)
+  }, [])
+
+  const filtered = auditLog.filter((entry) =>
     searchQuery
       ? entry.user.includes(searchQuery) || entry.action.includes(searchQuery) || entry.target.includes(searchQuery)
       : true
