@@ -3,8 +3,11 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum UblJsonError {
-    #[error("validation error: {0}")]
-    Validation(String),
+    #[error("[Err.UblJson.Validation] {field} is empty. Hint: {hint}")]
+    Validation {
+        field: &'static str,
+        hint: &'static str,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,28 +38,28 @@ pub struct UblJsonV1 {
 impl UblJsonV1 {
     pub fn validate(&self) -> Result<(), UblJsonError> {
         if self.space.is_empty() {
-            return Err(UblJsonError::Validation("space empty".into()));
+            return Err(UblJsonError::Validation { field: "space", hint: "Set 'space' to the namespace for this document (e.g., 'compliance', 'identity')" });
         }
         if self.version.is_empty() {
-            return Err(UblJsonError::Validation("version empty".into()));
+            return Err(UblJsonError::Validation { field: "version", hint: "Set 'version' to the schema version (e.g., '1.0')" });
         }
         if self.id.is_empty() {
-            return Err(UblJsonError::Validation("id empty".into()));
+            return Err(UblJsonError::Validation { field: "id", hint: "Set 'id' to a unique document identifier (UUID or CID)" });
         }
         if self.app.is_empty() {
-            return Err(UblJsonError::Validation("app empty".into()));
+            return Err(UblJsonError::Validation { field: "app", hint: "Set 'app' to the application name that owns this document" });
         }
         if self.tenant.is_empty() {
-            return Err(UblJsonError::Validation("tenant empty".into()));
+            return Err(UblJsonError::Validation { field: "tenant", hint: "Set 'tenant' to the tenant slug (e.g., 'default', 'acme')" });
         }
         if self.subject.is_empty() {
-            return Err(UblJsonError::Validation("subject empty".into()));
+            return Err(UblJsonError::Validation { field: "subject", hint: "Set 'subject' to the DID or identifier of the entity this document is about" });
         }
         if self.intent.is_empty() {
-            return Err(UblJsonError::Validation("intent empty".into()));
+            return Err(UblJsonError::Validation { field: "intent", hint: "Set 'intent' to the action being requested (e.g., 'verify', 'approve', 'transact')" });
         }
         if self.claims.is_empty() {
-            return Err(UblJsonError::Validation("claims empty".into()));
+            return Err(UblJsonError::Validation { field: "claims", hint: "Add at least one claim string to the 'claims' array" });
         }
         Ok(())
     }

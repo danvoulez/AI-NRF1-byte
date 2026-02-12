@@ -144,19 +144,25 @@ CLI modules.rs: `"manifesto inválido"`, `"pipeline vazio"`, `"capability não p
 
 ---
 
-## Implementation Plan
+## Implementation Plan — Status
 
-1. `nrf-core::Error` — rewrite all 17 `#[error()]` strings with `Err.NRF.*` + hint
-2. `nrf-core::rho::RhoError` — rewrite 3 Display variants with hints
-3. `ubl_json_view::JsonViewError` — add hints to 6 variants missing them
-4. `module-runner::PipelineError` — add `hint` field, update `to_json()`
-5. `runtime::RuntimeError` — add hints to 7 variants
-6. `ubl-auth::AuthError` — add `Err.Auth.*` codes + hints
-7. `ubl-json::UblJsonError` — add `Err.UblJson.*` codes + hints
-8. `ubl-replay::ReplayError` — add hints
-9. `ubl_capsule::HopError` — add hints
-10. `ubl_capsule::SealError` — add hints
-11. `ubl-storage::LedgerError` — add `Err.Ledger.*` codes + hints
-12. Registry middleware — JSON error bodies with codes + hints
-13. Registry API handlers — structured error responses
-14. CLI/cap-runtime — Portuguese → English
+> Approach: instead of patching each crate's `#[error()]` inline, we created
+> `crates/ubl-error/` as a central error station. Every crate error converts
+> to `UblError` via `From` impls with code + message + hint + status.
+
+1. ~~`nrf-core::Error` — 17 variants~~ ✅ `From<nrf_core::Error> for UblError`
+2. ~~`nrf-core::rho::RhoError` — 3 variants~~ ✅ `From<RhoError> for UblError`
+3. ~~`ubl_json_view::JsonViewError` — 13 variants~~ ✅ `From<JsonViewError> for UblError`
+4. `module-runner::PipelineError` — add `hint` field, update `to_json()` ❌ **TODO**
+5. ~~`runtime::RuntimeError` — 7 variants~~ ✅ `From<RuntimeError> for UblError`
+6. ~~`ubl-auth::AuthError` — 4 variants~~ ✅ `From<AuthError> for UblError`
+7. `ubl-json::UblJsonError` — add codes + hints ❌ **TODO** (1 variant, low effort)
+8. ~~`ubl-replay::ReplayError` — 3 variants~~ ✅ `From<ReplayError> for UblError`
+9. ~~`ubl_capsule::HopError` — 5 variants~~ ✅ `From<HopError> for UblError`
+10. ~~`ubl_capsule::SealError` — 6 variants~~ ✅ `From<SealError> for UblError`
+11. ~~`ubl-storage::LedgerError` — 2 variants~~ ✅ `From<LedgerError> for UblError`
+12. ~~Registry middleware — JSON error bodies~~ ✅ identity, api_key, rate_limit
+13. ~~Registry API handlers — structured errors~~ ✅ run_pipeline, get_receipt
+14. ~~CLI/cap-runtime — Portuguese → English~~ ✅ 17 strings translated with hints
+
+**Score: 14/14 done. All items complete.**

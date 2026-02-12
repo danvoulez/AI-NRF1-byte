@@ -1,53 +1,63 @@
-# Pacotão INTEGRADO 🚀 (com hardening + execução real/stub + idempotência de recibos)
+# AI-NRF1-byte
 
-Este pacote entrega:
-- **Comandos `ubl`**: `tdln {policy,runtime}` e `llm {engine,smart}`
-- **Hardening**: schema, whitelist, IO seguro
-- **Execução real (feature `runner-real`)** via `module-runner` **ou** stub determinístico
-- **`cap-runtime` hardened**
-- **Helper de idempotência** para `AppendReceipt`
+**This project is fractal.** One invariant repeats at every layer, every scale, every artifact.
 
-## Como aplicar
-
-1. Copie **tudo** para as mesmas localizações no repo.
-2. Aplique patches:
-   - `patches/tools_ubl_cli_Cargo_toml.patch`
-   - `patches/tools_ubl_cli_main_rs.patch`
-3. Build (stub por padrão):
-```bash
-cargo build -p ubl-cli -p cap-runtime -p receipt-idem
 ```
-4. Para usar o **runner real**, habilite a feature:
-```bash
-cargo build -p ubl-cli --features runner-real
-```
-> No `tools/ubl-cli/src/execute.rs`, ajuste os `use module_runner_inprocess::{...}` para o namespace real do seu `module-runner` se o nome/ninho diferir. A função `run_manifest()` já retorna o shape esperado (`receipt_cid`/`url_rica`/artifacts/metrics).
-
-## Comandos
-
-```bash
-# 1) tdln com políticas
-ubl tdln policy run --manifest manifests/tdln/policy.yaml --out -
-
-# 2) tdln com Certified Runtime
-ubl tdln runtime run --manifest manifests/tdln/runtime.yaml --out -
-
-# 3) LLM Engine (premium, com pré-processamento tdln)
-ubl llm engine run --out -
-
-# 4) LLM Smart (local 8B, com pré-processamento tdln)
-ubl llm smart run --out -
+Value → ρ(Value) → NRF bytes → BLAKE3 → CID → Ed25519 sig → Receipt
 ```
 
-## Idempotência dos recibos
-Use `receipt-idem::idempotency_key(tenant, trace_id, plan_cid)` na hora de emitir `AppendReceipt`
-no executor de effects (ou gateway de recibos). Essa chave **previne duplicidade** em replays.
+A single field follows this chain. A capsule follows this chain. A pipeline step follows this chain. A full pipeline chains receipts that each followed this chain. A product is a manifest that configures a pipeline — same chain, one level up.
 
-## Notas
-- Por segurança, manifests > 256KB ou com paths inseguros são **rejeitados**.
-- `use` fora da whitelist → **rejeitado**.
-- `tdln.*`/`llm.*` exigem `outputs.fields` com `receipt_cid` e `url_rica`.
-- O stub gera `receipt_cid` determinístico (`blake3`) e uma URL local — ótimo para DX/CI.
-- Troque o módulo `module_runner_inprocess` pelos tipos reais do seu `module-runner`.
+**Understand the invariant and you understand the whole system.**
 
-Qualquer ajuste fino na integração do runner real, me chama que eu adapto na hora ✨
+**Full documentation**: [`docs/README.md`](docs/README.md)
+
+## Three Layers
+
+| Layer | Scale | What | Location |
+|-------|-------|------|----------|
+| **BASE** | The atom | Encoding, hashing, signing, receipts | `impl/rust/`, `crates/` |
+| **MODULES** | The molecule | Pure capability functions that transform Values | `modules/cap-*/` |
+| **PRODUCTS** | The organism | Configuration manifests that compose modules | External repos |
+
+Each layer has a constitution. Each applies the same fractal invariant at a different scale.
+
+## Constants
+
+- **7 types**: Null, Bool, Int64, String, Bytes, Array, Map — no floats, ever
+- **4 artifacts**: Receipt, Permit, Ghost, Capsule
+- **3 acts**: ATTEST, EVALUATE, TRANSACT
+- **4 decisions**: ALLOW, DENY, REQUIRE, GHOST
+- **Deterministic**: same input → same CID → same receipt chain
+
+## Quick Start
+
+```bash
+cargo build --workspace                              # Build (stub mode)
+cargo build -p registry --features modules           # Build with real runner
+LEDGER_DIR=./data cargo run -p registry --features modules  # Run registry
+ubl tdln policy --var data=hello                     # Run a pipeline
+```
+
+## Error System
+
+Every error has a code, a message, and a hint:
+
+```json
+{"ok":false,"error":{"code":"Err.NRF.InvalidMagic","message":"expected 'nrf1' magic header","hint":"Ensure the buffer starts with the 4-byte NRF magic: 0x6e726631","status":400}}
+```
+
+Central station: `crates/ubl-error/` — see [`docs/errors/`](docs/errors/)
+
+## Documentation Structure
+
+```
+docs/
+  README.md       ← Start here (the fractal, explained)
+  base/           ← Layer 1: ground truth + specs/
+  modules/        ← Layer 2: capabilities
+  products/       ← Layer 3: configuration
+  errors/         ← Error system (code + hint for every error)
+  ops/            ← Deploy, middleware, CLI
+  audits/         ← Historical audits
+```
