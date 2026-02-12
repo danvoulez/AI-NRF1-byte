@@ -72,6 +72,31 @@ enum Commands {
         #[command(subcommand)]
         cmd: TdlnCmd,
     },
+    /// Product generator (internal)
+    #[command(hide = true)]
+    Product {
+        #[command(subcommand)]
+        cmd: ProductCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProductCmd {
+    /// Initialize a new product from the mother UI template
+    Init {
+        /// Product display name
+        #[arg(long)]
+        name: String,
+        /// Platform registry URL
+        #[arg(long)]
+        registry: String,
+        /// Output directory
+        #[arg(long)]
+        out: String,
+        /// Default tenant ID
+        #[arg(long, default_value = "default")]
+        tenant: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -280,7 +305,35 @@ async fn run(cli: Cli) -> Result<()> {
             TdlnCmd::Policy { args } => modules::run_tdln("policy", args).await,
             TdlnCmd::Runtime { args } => modules::run_tdln("runtime", args).await,
         },
+        Commands::Product { cmd } => match cmd {
+            ProductCmd::Init { name, registry, out, tenant } => {
+                cmd_product_init(&name, &registry, &out, &tenant)
+            }
+        },
     }
+}
+
+fn cmd_product_init(name: &str, registry: &str, out: &str, tenant: &str) -> Result<()> {
+    let exe = std::env::current_exe()?;
+    let cwd = std::env::current_dir()?;
+    let marker = "tools/product-spitter/spit.sh";
+    let repo_root = exe
+        .ancestors()
+        .find(|p| p.join(marker).exists())
+        .or_else(|| cwd.ancestors().find(|p| p.join(marker).exists()))
+        .ok_or_else(|| anyhow!("cannot find {marker} — run from repo root"))?;
+    let script = repo_root.join(marker);
+    let status = std::process::Command::new("bash")
+        .arg(&script)
+        .arg("--name").arg(name)
+        .arg("--registry").arg(registry)
+        .arg("--out").arg(out)
+        .arg("--tenant").arg(tenant)
+        .status()?;
+    if !status.success() {
+        anyhow::bail!("product-spitter exited with {}", status);
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

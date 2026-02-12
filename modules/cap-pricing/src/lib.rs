@@ -120,3 +120,9 @@ pub fn price_one(req: &api::PriceReq) -> Result<api::PriceResp> {
     let cfg = CONF.get().ok_or_else(|| anyhow::anyhow!("pricing config not loaded"))?;
     engine::price_one(cfg, req)
 }
+
+/// Price a scenario using global config. Service-layer convenience only.
+pub fn price_scenario(req: &api::ScenarioReq) -> Result<api::ScenarioResp> {
+    let cfg = CONF.get().ok_or_else(|| anyhow::anyhow!("pricing config not loaded"))?;
+    price_scenario_with(cfg, req)
+}

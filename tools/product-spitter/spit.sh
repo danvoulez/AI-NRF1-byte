@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# ubl product init — the secret product spitter
+#
+# Copies the mother TDLN UI, rebrands it, and points it at the
+# platform registry. The output is a standalone Next.js repo that
+# talks to LAB 512 services via HTTP. No BASE or MODULES code is copied.
+# ---------------------------------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MOTHER_UI="$REPO_ROOT/services/tdln-ui"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") --name <product-name> --registry <url> --out <dir>
+
+Options:
+  --name       Product name (e.g. "Acme Verify")
+  --registry   Registry URL (e.g. https://lab512.example.com)
+  --out        Output directory for the new product repo
+  --tenant     Default tenant ID (optional, default: "default")
+
+Example:
+  $(basename "$0") --name "Acme Verify" --registry https://lab512.example.com --out ~/repos/acme-verify
+EOF
+  exit 1
+}
+
+# Parse args
+PRODUCT_NAME=""
+REGISTRY_URL=""
+OUT_DIR=""
+TENANT="default"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --name)    PRODUCT_NAME="$2"; shift 2 ;;
+    --registry) REGISTRY_URL="$2"; shift 2 ;;
+    --out)     OUT_DIR="$2"; shift 2 ;;
+    --tenant)  TENANT="$2"; shift 2 ;;
+    -h|--help) usage ;;
+    *) echo "Unknown option: $1"; usage ;;
+  esac
+done
+
+if [[ -z "$PRODUCT_NAME" || -z "$REGISTRY_URL" || -z "$OUT_DIR" ]]; then
+  echo "Error: --name, --registry, and --out are required."
+  usage
+fi
+
+# Slug from name (lowercase, hyphens)
+SLUG=$(echo "$PRODUCT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
+
+echo "=== Product Spitter ==="
+echo "  Name:     $PRODUCT_NAME"
+echo "  Slug:     $SLUG"
+echo "  Registry: $REGISTRY_URL"
+echo "  Tenant:   $TENANT"
+echo "  Output:   $OUT_DIR"
+echo ""
+
+# ---------------------------------------------------------------------------
+# 1. Copy mother UI (excluding node_modules, .next, .env.local)
+# ---------------------------------------------------------------------------
+if [[ -d "$OUT_DIR" ]]; then
+  echo "Error: $OUT_DIR already exists. Remove it first or choose a different path."
+  exit 1
+fi
+
+echo "[1/5] Copying mother UI..."
+mkdir -p "$OUT_DIR"
+rsync -a \
+  --exclude='node_modules' \
+  --exclude='.next' \
+  --exclude='.env.local' \
+  --exclude='.env*.local' \
+  "$MOTHER_UI/" "$OUT_DIR/"
+
+# ---------------------------------------------------------------------------
+# 2. Customize package.json
+# ---------------------------------------------------------------------------
+echo "[2/5] Customizing package.json..."
+if command -v python3 &>/dev/null; then
+  python3 -c "
+import json, sys
+with open('$OUT_DIR/package.json') as f:
+    pkg = json.load(f)
+pkg['name'] = '$SLUG'
+pkg['version'] = '1.0.0'
+pkg['private'] = True
+with open('$OUT_DIR/package.json', 'w') as f:
+    json.dump(pkg, f, indent=2)
+    f.write('\n')
+"
+else
+  # Fallback: sed
+  sed -i.bak "s/\"name\": \"my-project\"/\"name\": \"$SLUG\"/" "$OUT_DIR/package.json"
+  rm -f "$OUT_DIR/package.json.bak"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Write .env.local with registry URL
+# ---------------------------------------------------------------------------
+echo "[3/5] Writing .env.local..."
+cat > "$OUT_DIR/.env.local" <<EOF
+NEXT_PUBLIC_REGISTRY_URL=$REGISTRY_URL
+NEXT_PUBLIC_TENANT=$TENANT
+NEXT_PUBLIC_PRODUCT_NAME=$PRODUCT_NAME
+EOF
+
+# ---------------------------------------------------------------------------
+# 4. Create README
+# ---------------------------------------------------------------------------
+echo "[4/5] Creating README..."
+cat > "$OUT_DIR/README.md" <<EOF
+# $PRODUCT_NAME
+
+A product built on the TDLN cryptographic proof platform.
+
+## Quick Start
+
+\`\`\`bash
+pnpm install
+pnpm dev
+\`\`\`
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Configuration
+
+Edit \`.env.local\`:
+
+| Variable | Description |
+|---|---|
+| \`NEXT_PUBLIC_REGISTRY_URL\` | Platform registry URL (default: $REGISTRY_URL) |
+| \`NEXT_PUBLIC_TENANT\` | Your tenant ID |
+| \`NEXT_PUBLIC_PRODUCT_NAME\` | Display name |
+
+## Architecture
+
+This product is a **thin UI layer** that connects to the TDLN platform
+via HTTP. All policy evaluation, receipt generation, and cryptographic
+proofs are handled by the platform services.
+
+- \`POST /modules/run\` — Execute a pipeline (send manifest + input data)
+- \`GET /v1/receipts/:cid\` — Retrieve receipt details (SIRP timeline, proofs)
+- \`GET /v1/executions\` — List past executions
+
+## Deploy
+
+\`\`\`bash
+pnpm build
+# Deploy to Vercel, Docker, or any static host
+\`\`\`
+EOF
+
+# ---------------------------------------------------------------------------
+# 5. Init git repo
+# ---------------------------------------------------------------------------
+echo "[5/5] Initializing git repo..."
+cd "$OUT_DIR"
+git init -q
+git add -A
+git commit -q -m "init: $PRODUCT_NAME (generated by product-spitter)"
+
+echo ""
+echo "=== Done! ==="
+echo ""
+echo "  cd $OUT_DIR"
+echo "  pnpm install"
+echo "  pnpm dev"
+echo ""
+echo "Your product is connected to: $REGISTRY_URL"
+echo "No platform code was copied — only the UI layer."
