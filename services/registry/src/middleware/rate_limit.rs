@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
+    Json,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -91,10 +92,7 @@ pub async fn rate_limit(
     if limiter.try_acquire(&product) {
         next.run(req).await
     } else {
-        (
-            StatusCode::TOO_MANY_REQUESTS,
-            "rate limit exceeded for this product",
-        )
-            .into_response()
+        let e = ubl_error::UblError::rate_limited(&product);
+        (StatusCode::TOO_MANY_REQUESTS, Json(e.to_json())).into_response()
     }
 }

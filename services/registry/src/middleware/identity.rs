@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
+    Json,
 };
 
 // ---------------------------------------------------------------------------
@@ -46,15 +47,19 @@ pub async fn require_identity(
             });
             next.run(req).await
         }
-        (None, _) => (
-            StatusCode::BAD_REQUEST,
-            "missing required header: X-Tenant",
-        )
-            .into_response(),
-        (_, None) => (
-            StatusCode::BAD_REQUEST,
-            "missing required header: X-Product",
-        )
-            .into_response(),
+        (None, _) => {
+            let e = ubl_error::UblError::missing_header(
+                "X-Tenant",
+                "Add X-Tenant header with your tenant slug. Example: X-Tenant: default",
+            );
+            (StatusCode::BAD_REQUEST, Json(e.to_json())).into_response()
+        }
+        (_, None) => {
+            let e = ubl_error::UblError::missing_header(
+                "X-Product",
+                "Add X-Product header with your product slug. Example: X-Product: tdln",
+            );
+            (StatusCode::BAD_REQUEST, Json(e.to_json())).into_response()
+        }
     }
 }

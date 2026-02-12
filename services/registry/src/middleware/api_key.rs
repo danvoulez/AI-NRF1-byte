@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
+    Json,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -86,11 +87,11 @@ pub async fn require_api_key(
     let product = match identity {
         Some(id) => id.product,
         None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                "missing product identity (run require_identity first)",
-            )
-                .into_response();
+            let e = ubl_error::UblError::missing_header(
+                "X-Product",
+                "The require_identity middleware must run before require_api_key. This is a server configuration error.",
+            );
+            return (StatusCode::BAD_REQUEST, Json(e.to_json())).into_response();
         }
     };
 
@@ -103,10 +104,7 @@ pub async fn require_api_key(
     if store.validate(&product, api_key) {
         next.run(req).await
     } else {
-        (
-            StatusCode::UNAUTHORIZED,
-            "invalid or missing X-API-Key for this product",
-        )
-            .into_response()
+        let e = ubl_error::UblError::invalid_api_key(&product);
+        (StatusCode::UNAUTHORIZED, Json(e.to_json())).into_response()
     }
 }

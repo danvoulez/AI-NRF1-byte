@@ -28,6 +28,7 @@ hex = "0.4"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 ubl-storage = { path = "../../crates/ubl-storage" }
+ubl-error = { path = "../../crates/ubl-error", default-features = false, features = [] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 urlencoding = "2"
 

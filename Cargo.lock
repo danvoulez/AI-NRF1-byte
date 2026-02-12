@@ -3691,6 +3691,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
+ "ubl-error",
  "ubl-storage",
  "ubl_json_view",
  "urlencoding",
@@ -5119,6 +5120,21 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tokio",
+ "ubl_capsule",
+ "ubl_json_view",
+]
+
+[[package]]
+name = "ubl-error"
+version = "0.1.0"
+dependencies = [
+ "nrf-core",
+ "runtime",
+ "serde",
+ "serde_json",
+ "ubl-auth",
+ "ubl-replay",
+ "ubl-storage",
  "ubl_capsule",
  "ubl_json_view",
 ]

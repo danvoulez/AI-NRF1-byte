@@ -39,6 +39,9 @@ members = [
   "crates/cap-quote",
   "crates/cap-invoice",
 
+  # Central error station (LLM-first: code + message + hint)
+  "crates/ubl-error",
+
   # Service layer (brand = ubl-*)
   "crates/ubl-auth",
   "crates/ubl-model",

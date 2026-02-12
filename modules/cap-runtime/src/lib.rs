@@ -1,4 +1,4 @@
-//! cap-runtime HARDENED com allowlist/HMAC/idempotência/nonce-exp.
+//! cap-runtime — hardened with allowlist/HMAC/idempotency/nonce-exp.
 //!
 //! Adapted from pacotão bundle to use the real modules-core CapInput/CapOutput API.
 
@@ -31,18 +31,18 @@ impl Capability for RuntimeModule {
 
     fn validate_config(&self, cfg: &serde_json::Value) -> Result<()> {
         let c: Config = serde_json::from_value(cfg.clone())
-            .context("cap-runtime: config inválida")?;
+            .context("cap-runtime: invalid config. Hint: check that all required fields (executor, limits, webhook_binding) are present and correctly typed")?;
         if c.code_input.is_none() && c.data_input.is_none() {
-            return Err(anyhow!("cap-runtime: informe code_input ou data_input"));
+            return Err(anyhow!("cap-runtime: either code_input or data_input must be set. Hint: add \"code_input\": \"<env_key>\" or \"data_input\": \"<env_key>\" to the config"));
         }
         ensure_allowlist(&c.executor, &c.executor_allow)?;
-        if let Some(mb) = c.max_input_mb { if mb > 64 { anyhow::bail!("max_input_mb muito alto"); } }
+        if let Some(mb) = c.max_input_mb { if mb > 64 { anyhow::bail!("max_input_mb too large (max 64). Hint: reduce max_input_mb to 64 or less"); } }
         Ok(())
     }
 
     fn execute(&self, input: CapInput) -> Result<CapOutput> {
         let cfg: Config = serde_json::from_value(input.config.clone())
-            .context("cap-runtime: config inválida")?;
+            .context("cap-runtime: invalid config. Hint: check that all required fields (executor, limits, webhook_binding) are present and correctly typed")?;
         ensure_allowlist(&cfg.executor, &cfg.executor_allow)?;
 
         let env_json: Value = ubl_json_view::to_json(&input.env);
@@ -116,7 +116,7 @@ impl Capability for RuntimeModule {
 fn ensure_allowlist(exec: &str, allow: &Option<Vec<String>>) -> Result<()> {
     if let Some(list) = allow {
         if !list.iter().any(|x| x == exec) {
-            return Err(anyhow!("executor não permitido: {}", exec));
+            return Err(anyhow!("executor '{}' not in allowlist. Hint: add it to executor_allow or use one of: {:?}", exec, list));
         }
     }
     Ok(())

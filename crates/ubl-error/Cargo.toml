@@ -1,0 +1,28 @@
+[package]
+name = "ubl-error"
+version = "0.1.0"
+edition = "2021"
+description = "Central error station — every UBL error converts to UblError with code + hint"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Crates whose errors we translate (all optional, feature-gated)
+nrf-core = { path = "../../impl/rust/nrf-core", optional = true }
+ubl_json_view = { path = "../../impl/rust/ubl_json_view", optional = true }
+ubl_capsule = { path = "../../impl/rust/ubl_capsule", optional = true }
+ubl-storage = { path = "../ubl-storage", optional = true }
+ubl-replay = { path = "../ubl-replay", optional = true }
+ubl-auth = { path = "../ubl-auth", optional = true }
+runtime = { path = "../runtime", optional = true }
+
+[features]
+default = ["nrf", "json_view", "capsule", "storage", "replay", "auth", "rt"]
+nrf = ["dep:nrf-core"]
+json_view = ["dep:ubl_json_view"]
+capsule = ["dep:ubl_capsule"]
+storage = ["dep:ubl-storage"]
+replay = ["dep:ubl-replay"]
+auth = ["dep:ubl-auth"]
+rt = ["dep:runtime"]

@@ -143,22 +143,22 @@ async fn run_pipeline(
     let manifest: module_runner::manifest::Manifest = match serde_json::from_value(body.manifest) {
         Ok(m) => m,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"ok": false, "error": format!("invalid manifest: {e}")})),
-            )
-                .into_response();
+            let ue = ubl_error::UblError::bad_request(
+                format!("invalid manifest: {e}"),
+                "Check that the 'manifest' field is a valid JSON object matching the Manifest schema. Required fields: name, pipeline (array of steps with 'use' and 'with').",
+            );
+            return (StatusCode::BAD_REQUEST, Json(ue.to_json())).into_response();
         }
     };
 
     let env = match json_to_nrf(&body.env) {
         Ok(v) => v,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"ok": false, "error": format!("invalid env: {e}")})),
-            )
-                .into_response();
+            let ue = ubl_error::UblError::bad_request(
+                format!("invalid env: {e}"),
+                "The 'env' field must be a JSON object with string/integer/boolean values. Floats are forbidden (NRF type system). Use integers instead.",
+            );
+            return (StatusCode::BAD_REQUEST, Json(ue.to_json())).into_response();
         }
     };
 
@@ -287,11 +287,10 @@ async fn run_pipeline(
 
             (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())).into_response()
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"ok": false, "error": format!("{e}")})),
-        )
-            .into_response(),
+        Err(e) => {
+            let ue = ubl_error::UblError::internal(format!("{e}"));
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ue.to_json())).into_response()
+        }
     }
 }
 
@@ -387,10 +386,10 @@ async fn get_receipt(
                 "evidence": evidence,
             }))).into_response()
         }
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": format!("receipt {cid} not found")})),
-        ).into_response(),
+        None => {
+            let ue = ubl_error::UblError::not_found("receipt", &cid);
+            (StatusCode::NOT_FOUND, Json(ue.to_json())).into_response()
+        }
     }
 }
 
