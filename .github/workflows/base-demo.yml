@@ -11,7 +11,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release --workspace
       - name: Run conformance
-        run: ./target/release/ainrf1 conformance conformance/manifest.json
+        run: ./target/release/ai-nrf1 conformance conformance/manifest.json
 
   demo:
     runs-on: ubuntu-latest
@@ -22,21 +22,21 @@ jobs:
       - name: Binary SHA256
         run: |
           set -e
-          BIN=./target/release/ainrf1
+          BIN=./target/release/ai-nrf1
           sha256sum "$BIN" | awk '{print $1}' | tee binary.sha256
           echo "BINARY_SHA256=$(cat binary.sha256)" >> $GITHUB_ENV
       - name: SBOM
         run: python3 tools/sbom.py > sbom.cdx.json
       - name: Demo CID
-        run: echo '{"a":1}' > a.json && ./target/release/ainrf1 cid a.json
+        run: echo '{"a":1}' > a.json && ./target/release/ai-nrf1 cid a.json
       - name: Canon & Judge
         run: |
-          ./target/release/ainrf1 canon a.json -o context.nrf
-          ./target/release/ainrf1 judge context.nrf --policy eu-ai-act@1 --engine ollama --model llama3:8b --out receipt.json --url https://ubl.agency
+          ./target/release/ai-nrf1 canon a.json -o context.nrf
+          ./target/release/ai-nrf1 judge context.nrf --policy eu-ai-act@1 --engine ollama --model llama3:8b --out receipt.json --url https://ubl.agency
       - name: Bundle & Verify
         run: |
-          ./target/release/ainrf1 bundle --receipt receipt.json --context context.nrf --sbom sbom.cdx.json -o passport.tgz
-          ./target/release/ainrf1 verify --bundle passport.tgz --known-runtime $BINARY_SHA256
+          ./target/release/ai-nrf1 bundle --receipt receipt.json --context context.nrf --sbom sbom.cdx.json -o passport.tgz
+          ./target/release/ai-nrf1 verify --bundle passport.tgz --known-runtime $BINARY_SHA256
       - uses: actions/upload-artifact@v4
         with:
           name: ai-nrf1-passport

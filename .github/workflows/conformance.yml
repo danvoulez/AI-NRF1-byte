@@ -7,7 +7,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Build CLI
-        run: echo "build placeholder (hook to cargo build -p ainrf1)"
+        run: echo "build placeholder (hook to cargo build -p ai-nrf1)"
       - name: Gate A1 — KATs (nrf-core + transistor)
         run: echo "run cargo test -p nrf-core"
       - name: Gate A2 — Fuzz decoder (smoke)
