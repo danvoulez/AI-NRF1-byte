@@ -85,6 +85,13 @@ async fn test_create_receipt_without_auth_returns_401() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    // Verify structured JSON error shape
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["ok"], false);
+    assert!(body["error"]["code"].as_str().unwrap().starts_with("Err."));
+    assert!(body["error"]["message"].as_str().is_some());
+    assert!(body["error"]["hint"].as_str().is_some());
+    assert_eq!(body["error"]["status"], 401);
 }
 
 #[tokio::test]
@@ -104,8 +111,52 @@ async fn test_create_receipt_with_auth_returns_501() {
         .unwrap();
     // Auth passes, but pipeline is not yet implemented → 501
     assert_eq!(resp.status(), StatusCode::NOT_IMPLEMENTED);
+    // Verify structured JSON error shape
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["ok"], false);
+    assert_eq!(body["error"]["code"], "Err.Receipt.NotImplemented");
+    assert!(body["error"]["hint"].as_str().unwrap().len() > 0);
+    assert_eq!(body["error"]["status"], 501);
 }
 
 // ==========================================================================
-// MODULE tests — will be added when capability modules are implemented
+// Error shape tests — verify all error responses are structured JSON
 // ==========================================================================
+
+#[tokio::test]
+async fn test_all_errors_have_canonical_shape() {
+    let base = start_server().await;
+    let client = reqwest::Client::new();
+
+    // 401 — missing auth
+    let resp = client
+        .post(format!("{base}/v1/lab512/dev/receipts"))
+        .json(&json!({"body": {}, "act": "ATTEST", "subject": "b3:00"}))
+        .send()
+        .await
+        .unwrap();
+    let body: Value = resp.json().await.unwrap();
+    verify_error_shape(&body, 401);
+
+    // 501 — not implemented (with auth)
+    let resp = client
+        .post(format!("{base}/v1/lab512/dev/receipts"))
+        .header("Authorization", "Bearer tok")
+        .json(&json!({"body": {}, "act": "ATTEST", "subject": "b3:00"}))
+        .send()
+        .await
+        .unwrap();
+    let body: Value = resp.json().await.unwrap();
+    verify_error_shape(&body, 501);
+}
+
+fn verify_error_shape(body: &Value, expected_status: u16) {
+    assert_eq!(body["ok"], false, "error response must have ok: false");
+    let err = &body["error"];
+    let code = err["code"].as_str().expect("error.code must be a string");
+    assert!(code.starts_with("Err."), "code must start with 'Err.': {code}");
+    assert!(err["message"].as_str().is_some(), "error.message must be a string");
+    assert!(err["hint"].as_str().is_some(), "error.hint must be a string");
+    assert!(!err["hint"].as_str().unwrap().is_empty(), "error.hint must not be empty");
+    assert_eq!(err["status"], expected_status, "error.status must match HTTP status");
+}

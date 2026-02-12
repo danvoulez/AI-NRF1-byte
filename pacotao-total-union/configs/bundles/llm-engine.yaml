@@ -1,5 +1,0 @@
-bundles:
-  llm-engine-bundle:
-    - use: policy.hardening
-    - use: cap-llm-engine
-    - use: cap-enrich

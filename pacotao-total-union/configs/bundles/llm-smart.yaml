@@ -1,5 +1,0 @@
-bundles:
-  llm-smart-bundle:
-    - use: policy.light
-    - use: cap-llm-smart
-    - use: cap-enrich

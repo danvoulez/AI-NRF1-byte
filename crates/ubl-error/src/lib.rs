@@ -475,7 +475,7 @@ impl UblError {
             "Err.Request.MissingHeader",
             format!("missing required header: {header}"),
             hint,
-            400,
+            401,
         )
     }
 
@@ -575,7 +575,7 @@ mod tests {
     fn test_convenience_constructors() {
         let e = UblError::missing_header("X-Tenant", "Add X-Tenant header");
         assert_eq!(e.code, "Err.Request.MissingHeader");
-        assert_eq!(e.status, 400);
+        assert_eq!(e.status, 401);
 
         let e = UblError::invalid_api_key("tdln");
         assert_eq!(e.code, "Err.Auth.InvalidApiKey");

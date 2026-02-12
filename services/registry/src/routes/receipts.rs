@@ -55,20 +55,30 @@ async fn create_receipt(
     State(_state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
     Json(_req): Json<CreateReceiptReq>,
-) -> Result<Json<ReceiptResp>, (axum::http::StatusCode, String)> {
+) -> Result<Json<ReceiptResp>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     // Auth gate: require Bearer token before anything else
     match headers.get(axum::http::header::AUTHORIZATION) {
         Some(v) if v.to_str().unwrap_or("").starts_with("Bearer ") => {}
         _ => {
+            let err = ubl_error::UblError::missing_header(
+                "Authorization",
+                "Add 'Authorization: Bearer <token>' header to your request",
+            );
             return Err((
                 axum::http::StatusCode::UNAUTHORIZED,
-                "missing or invalid Authorization: Bearer <token>".into(),
+                Json(err.to_json()),
             ));
         }
     }
 
+    let err = ubl_error::UblError {
+        code: "Err.Receipt.NotImplemented".into(),
+        message: "Receipt pipeline not yet implemented".into(),
+        hint: "Use POST /api/v0/pipeline/run for module-based pipelines, or wait for receipt capability modules".into(),
+        status: 501,
+    };
     Err((
         axum::http::StatusCode::NOT_IMPLEMENTED,
-        "receipt pipeline not yet implemented. Awaiting capability modules (cap-intake, cap-policy, etc.)".into(),
+        Json(err.to_json()),
     ))
 }
