@@ -10,6 +10,7 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
 
 #[derive(Serialize)]
 struct Health {
@@ -108,5 +109,5 @@ pub fn build_router(state: Arc<state::AppState>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    base.layer(cors)
+    base.layer(TraceLayer::new_for_http()).layer(cors)
 }
